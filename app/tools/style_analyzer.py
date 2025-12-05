@@ -1,19 +1,17 @@
-"""Style Analyzer Tool using Gemini Vision API."""
+"""Style Analyzer Tool using Claude Opus 4 Vision API."""
 
 import base64
 import json
-import os
 from typing import Optional
 
 from langchain_core.tools import tool
-from google import genai
-from google.genai import types
+import anthropic
 
-from app.config import GOOGLE_API_KEY
+from app.config import ANTHROPIC_API_KEY
 
 
-# Initialize Gemini client
-client = genai.Client(api_key=GOOGLE_API_KEY)
+# Initialize Anthropic client
+client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
 # Store analyzed styles for reference
 _analyzed_styles: dict[str, dict] = {}
@@ -28,7 +26,7 @@ def analyze_design_style(
     """
     Analyze an existing design image to extract its visual style characteristics.
     
-    This tool uses Gemini's vision capabilities to understand colors, typography,
+    This tool uses Claude Opus 4's vision capabilities to understand colors, typography,
     layout patterns, and overall design language from uploaded design assets.
     
     Args:
@@ -134,19 +132,32 @@ Return as structured JSON.""",
     analysis_prompt = focus_prompts.get(analysis_focus, focus_prompts["comprehensive"])
     
     try:
-        # Decode image
-        image_bytes = base64.b64decode(image_base64)
-        
-        # Analyze with Gemini Vision
-        response = client.models.generate_content(
-            model="gemini-2.0-flash",
-            contents=[
-                types.Part.from_bytes(data=image_bytes, mime_type="image/png"),
-                analysis_prompt,
+        # Analyze with Claude Opus 4 Vision
+        message = client.messages.create(
+            model="claude-opus-4-20250514",
+            max_tokens=4096,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": "image/png",
+                                "data": image_base64,
+                            },
+                        },
+                        {
+                            "type": "text",
+                            "text": analysis_prompt,
+                        },
+                    ],
+                }
             ],
         )
         
-        analysis_text = response.text
+        analysis_text = message.content[0].text
         
         # Try to parse as JSON, otherwise structure the response
         try:
@@ -178,6 +189,7 @@ Return as structured JSON.""",
         
         return {
             "success": True,
+            "model_used": "claude-opus-4-20250514",
             **style_guide,
         }
         
@@ -288,7 +300,7 @@ def compare_styles(style_id_1: str, style_id_2: str) -> dict:
     style1 = _analyzed_styles[style_id_1]
     style2 = _analyzed_styles[style_id_2]
     
-    # Use Gemini to compare the styles
+    # Use Claude to compare the styles
     try:
         comparison_prompt = f"""Compare these two design style analyses and identify:
 
@@ -305,20 +317,25 @@ STYLE 2:
 
 Provide a structured comparison."""
 
-        response = client.models.generate_content(
-            model="gemini-2.0-flash",
-            contents=comparison_prompt,
+        message = client.messages.create(
+            model="claude-opus-4-20250514",
+            max_tokens=4096,
+            messages=[
+                {
+                    "role": "user",
+                    "content": comparison_prompt,
+                }
+            ],
         )
         
         return {
             "success": True,
             "style_1": style_id_1,
             "style_2": style_id_2,
-            "comparison": response.text,
+            "comparison": message.content[0].text,
         }
         
     except Exception as e:
         return {
             "error": f"Comparison failed: {str(e)}",
         }
-

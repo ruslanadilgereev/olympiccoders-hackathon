@@ -3,9 +3,12 @@ import { Client } from '@langchain/langgraph-sdk';
 const LANGGRAPH_API_URL = process.env.NEXT_PUBLIC_LANGGRAPH_API_URL || 
   'https://olympiccoders-hackathon-4cbc14aed8d35bde940eb9ca1d8d82ab.eu.langgraph.app';
 
+const LANGSMITH_API_KEY = process.env.NEXT_PUBLIC_LANGSMITH_API_KEY || '';
+
 // Initialize LangGraph client
 export const client = new Client({
   apiUrl: LANGGRAPH_API_URL,
+  apiKey: LANGSMITH_API_KEY,
 });
 
 export interface ChatMessage {
