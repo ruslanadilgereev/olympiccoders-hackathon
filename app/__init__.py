@@ -1,0 +1,2 @@
+"""Hackathon Agent package."""
+
