@@ -1,4 +1,4 @@
-"""Anthropic and configuration settings."""
+"""Configuration settings for Design Automation Agent."""
 import os
 
 try:
@@ -10,6 +10,15 @@ except ImportError:
 # Anthropic Configuration
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL") or "claude-sonnet-4-20250514"
+
+# Google AI Configuration (for Gemini image generation)
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+
+# Firecrawl Configuration (for URL scraping)
+FIRECRAWL_API_KEY = os.getenv("FIRECRAWL_API_KEY")
+
+# ChromaDB Configuration
+CHROMA_PERSIST_DIR = os.getenv("CHROMA_PERSIST_DIR", "./chroma_db")
 
 # LangSmith Configuration (optional, for tracing & monitoring)
 LANGSMITH_TRACING = os.getenv("LANGSMITH_TRACING", "false")
@@ -28,7 +37,13 @@ if LANGSMITH_TRACING == "true" and LANGSMITH_API_KEY:
 if not ANTHROPIC_API_KEY:
     raise ValueError("ANTHROPIC_API_KEY environment variable must be set")
 
+if not GOOGLE_API_KEY:
+    print("[WARNING] GOOGLE_API_KEY not set - image generation will not work")
+
 print(f"[OK] Anthropic configured: {ANTHROPIC_MODEL}")
+
+if GOOGLE_API_KEY:
+    print("[OK] Google AI configured for image generation")
 
 if LANGSMITH_TRACING == "true" and LANGSMITH_API_KEY:
     print(f"[OK] LangSmith Tracing enabled: Project '{LANGSMITH_PROJECT}'")
