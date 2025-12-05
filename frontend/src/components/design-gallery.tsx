@@ -38,9 +38,31 @@ export function DesignGallery() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const { generatedDesigns, removeDesign } = useDesignStore();
 
-  const downloadImage = (design: GeneratedDesign, format: 'png' | 'jpg' = 'png') => {
+  // Helper to get image src - supports both URL and base64
+  const getImageSrc = (design: GeneratedDesign) => {
+    const img = design.imageBase64;
+    const isUrl = img.startsWith('/') || img.startsWith('http');
+    return isUrl ? img : `data:image/png;base64,${img}`;
+  };
+
+  const downloadImage = async (design: GeneratedDesign, format: 'png' | 'jpg' = 'png') => {
+    const imgSrc = getImageSrc(design);
     const link = document.createElement('a');
-    link.href = `data:image/${format};base64,${design.imageBase64}`;
+    
+    // If it's a URL, fetch and convert to blob for download
+    if (imgSrc.startsWith('/') || imgSrc.startsWith('http')) {
+      try {
+        const response = await fetch(imgSrc);
+        const blob = await response.blob();
+        link.href = URL.createObjectURL(blob);
+      } catch {
+        // Fallback to direct link
+        link.href = imgSrc;
+      }
+    } else {
+      link.href = imgSrc;
+    }
+    
     link.download = `designforge-${design.id}.${format}`;
     document.body.appendChild(link);
     link.click();
@@ -56,8 +78,8 @@ export function DesignGallery() {
   const shareDesign = async (design: GeneratedDesign) => {
     if (navigator.share) {
       try {
-        // Convert base64 to blob for sharing
-        const response = await fetch(`data:image/png;base64,${design.imageBase64}`);
+        const imgSrc = getImageSrc(design);
+        const response = await fetch(imgSrc);
         const blob = await response.blob();
         const file = new File([blob], `design-${design.id}.png`, { type: 'image/png' });
 
@@ -142,7 +164,7 @@ export function DesignGallery() {
                       onClick={() => setSelectedDesign(design)}
                     >
                       <img
-                        src={`data:image/png;base64,${design.imageBase64}`}
+                        src={getImageSrc(design)}
                         alt={design.prompt}
                         className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                       />
@@ -282,7 +304,7 @@ export function DesignGallery() {
             <div className="flex-1 overflow-auto">
               <div className="relative bg-muted/20 rounded-lg overflow-hidden">
                 <img
-                  src={`data:image/png;base64,${selectedDesign.imageBase64}`}
+                  src={getImageSrc(selectedDesign)}
                   alt={selectedDesign.prompt}
                   className="w-full h-auto"
                 />

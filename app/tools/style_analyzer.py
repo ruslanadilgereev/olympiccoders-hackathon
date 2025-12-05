@@ -134,7 +134,7 @@ Return as structured JSON.""",
     try:
         # Analyze with Claude Opus 4 Vision
         message = client.messages.create(
-            model="claude-opus-4-20250514",
+            model="claude-opus-4-5-20251101",
             max_tokens=4096,
             messages=[
                 {
@@ -189,7 +189,7 @@ Return as structured JSON.""",
         
         return {
             "success": True,
-            "model_used": "claude-opus-4-20250514",
+            "model_used": "claude-opus-4-5-20251101",
             **style_guide,
         }
         
@@ -318,7 +318,7 @@ STYLE 2:
 Provide a structured comparison."""
 
         message = client.messages.create(
-            model="claude-opus-4-20250514",
+            model="claude-opus-4-5-20251101",
             max_tokens=4096,
             messages=[
                 {

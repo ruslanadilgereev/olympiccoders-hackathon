@@ -16,6 +16,7 @@ export interface StreamChunk {
   content: string;
   toolName?: string;
   toolArgs?: Record<string, unknown>;
+  imageUrl?: string; // URL to load image from (instead of base64)
 }
 
 export async function createThread(): Promise<string> {
@@ -137,13 +138,23 @@ export async function* streamMessage(
             if (typeof toolOutput === 'string') {
               toolResult = toolOutput;
             } else if (toolOutput && typeof toolOutput === 'object') {
-              // Check for image generation results
               const outputObj = toolOutput as Record<string, unknown>;
-              if (outputObj.image_base64) {
+              
+              // Check for image generation results - now using filename instead of base64
+              // This saves ~200k tokens per image!
+              if (outputObj.filename) {
+                const filename = outputObj.filename as string;
+                const imageUrl = `/api/outputs/${filename}`;
+                detectedImages.push(imageUrl);
+                yield { type: 'image', content: filename, imageUrl };
+              }
+              // Fallback: still support base64 for backwards compatibility
+              else if (outputObj.image_base64) {
                 const imageData = outputObj.image_base64 as string;
                 detectedImages.push(imageData);
                 yield { type: 'image', content: imageData };
               }
+              
               if (outputObj.success) {
                 toolResult = outputObj.ai_notes as string || 'Completed successfully';
               } else if (outputObj.error) {
@@ -198,7 +209,18 @@ export async function* streamMessage(
       }
     }
 
-    // Final check for images in the response text
+    // Final check for filenames in the response text (new format)
+    const filenamePattern = /["']?filename["']?\s*:\s*["']([^"']+\.(?:png|jpg|jpeg|webp))["']/gi;
+    let filenameMatch;
+    while ((filenameMatch = filenamePattern.exec(currentText)) !== null) {
+      const imageUrl = `/api/outputs/${filenameMatch[1]}`;
+      if (!detectedImages.includes(imageUrl)) {
+        detectedImages.push(imageUrl);
+        yield { type: 'image', content: filenameMatch[1], imageUrl };
+      }
+    }
+    
+    // Fallback: check for base64 images (backwards compatibility)
     const base64Pattern = /["']?image_base64["']?\s*:\s*["']([A-Za-z0-9+/=]{100,})["']/g;
     let match;
     while ((match = base64Pattern.exec(currentText)) !== null) {

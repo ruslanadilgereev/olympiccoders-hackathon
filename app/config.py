@@ -9,7 +9,7 @@ except ImportError:
 
 # Anthropic Configuration
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
-ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL") or "claude-sonnet-4-20250514"
+ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL") or "claude-opus-4-5-20251101"
 
 # Google AI Configuration (for Gemini image generation)
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")

@@ -223,13 +223,16 @@ export function GenerationChat() {
             break;
 
           case 'image':
-            // Add image to message
-            addImageToMessage(assistantMsgId, chunk.content);
+            // Add image to message - now supports both URL and base64
+            // If imageUrl is present, use it (new efficient format)
+            // Otherwise fall back to base64 (legacy)
+            const imageValue = chunk.imageUrl || chunk.content;
+            addImageToMessage(assistantMsgId, imageValue);
             
             // Also add to gallery
             const design: GeneratedDesign = {
               id: `design-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-              imageBase64: chunk.content,
+              imageBase64: imageValue, // Can be URL or base64
               prompt: userMessage,
               designType: 'generated',
               createdAt: new Date().toISOString(),
@@ -492,25 +495,31 @@ export function GenerationChat() {
                   {/* Images */}
                   {message.images && message.images.length > 0 && (
                     <div className="mt-4 grid grid-cols-2 gap-2">
-                      {message.images.map((img, i) => (
-                        <motion.div
-                          key={i}
-                          initial={{ opacity: 0, scale: 0.9 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          className="relative group rounded-lg overflow-hidden"
-                        >
-                          <img
-                            src={`data:image/png;base64,${img}`}
-                            alt={`Generated design ${i + 1}`}
-                            className="w-full h-auto"
-                          />
-                          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                            <Button variant="secondary" size="icon">
-                              <Maximize2 className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        </motion.div>
-                      ))}
+                      {message.images.map((img, i) => {
+                        // Support both URL (starts with /) and base64 formats
+                        const isUrl = img.startsWith('/') || img.startsWith('http');
+                        const imgSrc = isUrl ? img : `data:image/png;base64,${img}`;
+                        
+                        return (
+                          <motion.div
+                            key={i}
+                            initial={{ opacity: 0, scale: 0.9 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            className="relative group rounded-lg overflow-hidden"
+                          >
+                            <img
+                              src={imgSrc}
+                              alt={`Generated design ${i + 1}`}
+                              className="w-full h-auto"
+                            />
+                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                              <Button variant="secondary" size="icon">
+                                <Maximize2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </motion.div>
+                        );
+                      })}
                     </div>
                   )}
                 </Card>

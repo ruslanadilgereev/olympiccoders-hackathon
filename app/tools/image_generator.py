@@ -63,9 +63,12 @@ def generate_design_image(
     Returns:
         dict with:
         - image_id: Unique identifier for the generated image
-        - image_base64: Base64 encoded image data
-        - filepath: Path where the image was saved
+        - filename: Filename of the saved image (load via /outputs/{filename})
+        - filepath: Full path where the image was saved
         - metadata: Generation metadata including prompt and settings
+        
+    Note: Images are saved to disk and should be loaded separately via HTTP
+    to avoid massive token usage. Do NOT return base64 in tool responses.
     """
     # Build the full prompt with design expertise
     system_prompt = """You are an expert UI/UX designer creating high-fidelity design mockups.
@@ -125,20 +128,23 @@ Generate clean, modern, professional designs with:
         filename = f"{image_id}.png"
         filepath = _save_image(image_data, filename)
         
-        # Store in memory
+        # Store in memory (keep base64 only for internal retrieval via get_generated_image)
         image_base64 = base64.b64encode(image_data).decode("utf-8")
         _generated_images[image_id] = {
             "image_base64": image_base64,
             "filepath": filepath,
+            "filename": filename,
             "prompt": prompt,
             "design_type": design_type,
             "created_at": datetime.now().isoformat(),
         }
         
+        # NOTE: Do NOT return image_base64 here - it causes 200k+ tokens!
+        # Frontend should load the image via /outputs/{filename} endpoint
         return {
             "success": True,
             "image_id": image_id,
-            "image_base64": image_base64,
+            "filename": filename,
             "filepath": filepath,
             "ai_notes": response_text,
             "model_used": "gemini-3-pro-image-preview",
@@ -188,20 +194,23 @@ def _generate_with_imagen(prompt: str, aspect_ratio: str, design_type: str) -> d
     filename = f"{image_id}.png"
     filepath = _save_image(image_bytes, filename)
     
-    # Store in memory
+    # Store in memory (keep base64 only for internal retrieval via get_generated_image)
     image_base64 = base64.b64encode(image_bytes).decode("utf-8")
     _generated_images[image_id] = {
         "image_base64": image_base64,
         "filepath": filepath,
+        "filename": filename,
         "prompt": prompt,
         "design_type": design_type,
         "created_at": datetime.now().isoformat(),
     }
     
+    # NOTE: Do NOT return image_base64 here - it causes 200k+ tokens!
+    # Frontend should load the image via /outputs/{filename} endpoint
     return {
         "success": True,
         "image_id": image_id,
-        "image_base64": image_base64,
+        "filename": filename,
         "filepath": filepath,
         "ai_notes": "Image generated successfully using Imagen 4",
         "model_used": "imagen-4.0-generate-001",
@@ -251,6 +260,7 @@ def list_generated_images() -> dict:
                 "design_type": data["design_type"],
                 "prompt": data["prompt"][:100] + "..." if len(data["prompt"]) > 100 else data["prompt"],
                 "created_at": data["created_at"],
+                "filename": data.get("filename", f"{img_id}.png"),
                 "filepath": data["filepath"],
             }
             for img_id, data in _generated_images.items()
