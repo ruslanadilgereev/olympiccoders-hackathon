@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import { useDesignStore, UploadedAsset } from '@/lib/store';
+import { compressImage } from '@/lib/image-utils';
 
 interface UploadZoneProps {
   onAnalyzeComplete?: () => void;
@@ -79,11 +80,26 @@ export function UploadZone({ onAnalyzeComplete }: UploadZoneProps) {
       });
     }, 100);
 
-    // Read file as base64
-    const reader = new FileReader();
-    reader.onload = () => {
-      const base64 = (reader.result as string).split(',')[1];
-      
+    try {
+      let base64: string;
+      let preview: string | undefined;
+
+      if (isImage) {
+        // Compress images to reduce token usage (max 1024px, 70% quality)
+        base64 = await compressImage(file);
+        preview = `data:image/jpeg;base64,${base64}`;
+        console.log(`Image compressed: ${file.name}, ~${Math.round(base64.length / 1024)}KB`);
+      } else {
+        // For non-images, read normally
+        const result = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+        base64 = result.split(',')[1];
+      }
+
       clearInterval(progressInterval);
       setUploadProgress((prev) => ({ ...prev, [id]: 100 }));
 
@@ -92,7 +108,7 @@ export function UploadZone({ onAnalyzeComplete }: UploadZoneProps) {
         name: file.name,
         type: isImage ? 'image' : 'document',
         base64,
-        preview: isImage ? reader.result as string : undefined,
+        preview,
       };
 
       addAsset(asset);
@@ -105,9 +121,15 @@ export function UploadZone({ onAnalyzeComplete }: UploadZoneProps) {
           return newProgress;
         });
       }, 500);
-    };
-
-    reader.readAsDataURL(file);
+    } catch (error) {
+      console.error('Error processing file:', error);
+      clearInterval(progressInterval);
+      setUploadProgress((prev) => {
+        const newProgress = { ...prev };
+        delete newProgress[id];
+        return newProgress;
+      });
+    }
   }, [addAsset]);
 
   const handleDrop = useCallback(

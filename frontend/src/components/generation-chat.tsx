@@ -19,6 +19,8 @@ import {
   CheckCircle2,
   XCircle,
   Brain,
+  Trash2,
+  RotateCcw,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -112,6 +114,7 @@ export function GenerationChat() {
     addToolToMessage,
     updateToolInMessage,
     addImageToMessage,
+    clearMessages,
     isGenerating,
     setIsGenerating,
     threadId,
@@ -119,6 +122,13 @@ export function GenerationChat() {
     uploadedAssets,
     addDesign,
   } = useDesignStore();
+
+  // Clear chat and start new thread
+  const handleClearChat = useCallback(async () => {
+    clearMessages();
+    const newThread = await createThread();
+    setThreadId(newThread);
+  }, [clearMessages, setThreadId]);
 
   // Scroll to bottom when new messages arrive
   useEffect(() => {
@@ -162,10 +172,16 @@ export function GenerationChat() {
 
     try {
       // Get image base64 from uploaded assets for context
+      // Limit to 1 image and max 500KB to avoid token limits
+      const MAX_IMAGE_SIZE = 500 * 1024; // 500KB in base64 chars
       const imageContexts = uploadedAssets
-        .filter((a) => a.type === 'image')
-        .slice(0, 3)
+        .filter((a) => a.type === 'image' && a.base64.length < MAX_IMAGE_SIZE)
+        .slice(0, 1) // Only 1 image to stay under token limit
         .map((a) => a.base64);
+      
+      if (imageContexts.length > 0) {
+        console.log(`Sending ${imageContexts.length} image(s), size: ~${Math.round(imageContexts[0].length / 1024)}KB`);
+      }
 
       let currentThreadId = threadId;
       if (!currentThreadId) {
@@ -239,12 +255,28 @@ export function GenerationChat() {
       }
     } catch (error) {
       console.error('Error sending message:', error);
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      
+      // Check for token limit error
+      const isTokenLimit = errorMsg.includes('too long') || errorMsg.includes('token');
+      
       updateMessageState(assistantMsgId, {
-        content: 'Sorry, there was an error processing your request. Please try again.',
+        content: isTokenLimit 
+          ? '⚠️ Chat history too long. Starting fresh conversation...'
+          : 'Sorry, there was an error processing your request. Please try again.',
         error: error instanceof Error ? error.message : 'Unknown error',
         isStreaming: false,
         isThinking: false,
       });
+      
+      // Auto-clear on token limit to start fresh
+      if (isTokenLimit) {
+        setTimeout(async () => {
+          clearMessages();
+          const newThread = await createThread();
+          setThreadId(newThread);
+        }, 2000);
+      }
     } finally {
       setIsGenerating(false);
     }
@@ -259,6 +291,7 @@ export function GenerationChat() {
     addToolToMessage,
     updateToolInMessage,
     addImageToMessage,
+    clearMessages,
     setIsGenerating,
     setThreadId,
     addDesign,
@@ -284,6 +317,24 @@ export function GenerationChat() {
 
   return (
     <div className="flex flex-col h-full">
+      {/* Header with Clear Button */}
+      {messages.length > 0 && (
+        <div className="border-b border-border px-4 py-2 flex justify-between items-center bg-background/50 backdrop-blur-sm">
+          <span className="text-sm text-muted-foreground">
+            {messages.length} messages
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleClearChat}
+            className="text-muted-foreground hover:text-foreground"
+          >
+            <RotateCcw className="w-4 h-4 mr-2" />
+            New Chat
+          </Button>
+        </div>
+      )}
+
       {/* Messages Area */}
       <ScrollArea className="flex-1 p-4">
         <div className="space-y-6 max-w-4xl mx-auto">
