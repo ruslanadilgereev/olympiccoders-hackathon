@@ -46,6 +46,13 @@ export interface GeneratedDesign {
   aiNotes?: string;
 }
 
+export interface ToolActivity {
+  name: string;
+  status: 'running' | 'completed' | 'error';
+  args?: Record<string, unknown>;
+  result?: string;
+}
+
 export interface Message {
   id: string;
   role: 'user' | 'assistant';
@@ -53,6 +60,9 @@ export interface Message {
   timestamp: Date;
   images?: string[];
   isStreaming?: boolean;
+  isThinking?: boolean;
+  activeTools?: ToolActivity[];
+  error?: string;
 }
 
 interface DesignStore {
@@ -73,6 +83,10 @@ interface DesignStore {
   messages: Message[];
   addMessage: (message: Message) => void;
   updateMessage: (id: string, content: string) => void;
+  updateMessageState: (id: string, updates: Partial<Message>) => void;
+  addToolToMessage: (id: string, tool: ToolActivity) => void;
+  updateToolInMessage: (id: string, toolName: string, updates: Partial<ToolActivity>) => void;
+  addImageToMessage: (id: string, imageBase64: string) => void;
   clearMessages: () => void;
 
   // UI State
@@ -122,7 +136,42 @@ export const useDesignStore = create<DesignStore>((set) => ({
   updateMessage: (id, content) =>
     set((state) => ({
       messages: state.messages.map((m) =>
-        m.id === id ? { ...m, content, isStreaming: false } : m
+        m.id === id ? { ...m, content, isStreaming: content.length > 0 ? m.isStreaming : false } : m
+      ),
+    })),
+  updateMessageState: (id, updates) =>
+    set((state) => ({
+      messages: state.messages.map((m) =>
+        m.id === id ? { ...m, ...updates } : m
+      ),
+    })),
+  addToolToMessage: (id, tool) =>
+    set((state) => ({
+      messages: state.messages.map((m) =>
+        m.id === id 
+          ? { ...m, activeTools: [...(m.activeTools || []), tool], isThinking: false }
+          : m
+      ),
+    })),
+  updateToolInMessage: (id, toolName, updates) =>
+    set((state) => ({
+      messages: state.messages.map((m) =>
+        m.id === id
+          ? {
+              ...m,
+              activeTools: (m.activeTools || []).map((t) =>
+                t.name === toolName ? { ...t, ...updates } : t
+              ),
+            }
+          : m
+      ),
+    })),
+  addImageToMessage: (id, imageBase64) =>
+    set((state) => ({
+      messages: state.messages.map((m) =>
+        m.id === id
+          ? { ...m, images: [...(m.images || []), imageBase64] }
+          : m
       ),
     })),
   clearMessages: () => set({ messages: [] }),

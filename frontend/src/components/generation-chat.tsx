@@ -15,6 +15,10 @@ import {
   Copy,
   Check,
   Maximize2,
+  Wrench,
+  CheckCircle2,
+  XCircle,
+  Brain,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -22,7 +26,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { useDesignStore, Message, GeneratedDesign } from '@/lib/store';
+import { useDesignStore, Message, GeneratedDesign, ToolActivity } from '@/lib/store';
 import { createThread, streamMessage } from '@/lib/langgraph-client';
 
 const QUICK_PROMPTS = [
@@ -48,6 +52,52 @@ const QUICK_PROMPTS = [
   },
 ];
 
+// Tool display names
+const TOOL_DISPLAY_NAMES: Record<string, string> = {
+  generate_design_image: '🎨 Generating Design',
+  analyze_design_style: '🔍 Analyzing Style',
+  extract_brand_identity: '🌐 Extracting Brand',
+  get_style_context: '📋 Loading Style',
+  compare_styles: '⚖️ Comparing Styles',
+  knowledge_store: '📚 Accessing Knowledge',
+};
+
+function ToolActivityDisplay({ tool }: { tool: ToolActivity }) {
+  const displayName = TOOL_DISPLAY_NAMES[tool.name] || tool.name;
+  
+  return (
+    <motion.div
+      initial={{ opacity: 0, height: 0 }}
+      animate={{ opacity: 1, height: 'auto' }}
+      exit={{ opacity: 0, height: 0 }}
+      className="flex items-center gap-2 py-2 px-3 rounded-lg bg-muted/50 text-sm"
+    >
+      {tool.status === 'running' ? (
+        <Loader2 className="w-4 h-4 animate-spin text-primary" />
+      ) : tool.status === 'completed' ? (
+        <CheckCircle2 className="w-4 h-4 text-green-500" />
+      ) : (
+        <XCircle className="w-4 h-4 text-red-500" />
+      )}
+      <span className="font-medium">{displayName}</span>
+      {tool.status === 'running' && (
+        <motion.span
+          className="text-muted-foreground"
+          animate={{ opacity: [0.5, 1, 0.5] }}
+          transition={{ duration: 1.5, repeat: Infinity }}
+        >
+          processing...
+        </motion.span>
+      )}
+      {tool.status === 'completed' && tool.result && (
+        <span className="text-muted-foreground truncate max-w-[200px]">
+          {tool.result.slice(0, 50)}...
+        </span>
+      )}
+    </motion.div>
+  );
+}
+
 export function GenerationChat() {
   const [input, setInput] = useState('');
   const [copied, setCopied] = useState<string | null>(null);
@@ -58,6 +108,10 @@ export function GenerationChat() {
     messages,
     addMessage,
     updateMessage,
+    updateMessageState,
+    addToolToMessage,
+    updateToolInMessage,
+    addImageToMessage,
     isGenerating,
     setIsGenerating,
     threadId,
@@ -102,13 +156,15 @@ export function GenerationChat() {
       content: '',
       timestamp: new Date(),
       isStreaming: true,
+      isThinking: true,
+      activeTools: [],
     });
 
     try {
       // Get image base64 from uploaded assets for context
       const imageContexts = uploadedAssets
         .filter((a) => a.type === 'image')
-        .slice(0, 3) // Limit to 3 images
+        .slice(0, 3)
         .map((a) => a.base64);
 
       let currentThreadId = threadId;
@@ -117,49 +173,78 @@ export function GenerationChat() {
         setThreadId(currentThreadId);
       }
 
-      let fullResponse = '';
-      const detectedImages: string[] = [];
-
-      for await (const event of streamMessage(
+      for await (const chunk of streamMessage(
         currentThreadId,
         userMessage,
         imageContexts.length > 0 ? imageContexts : undefined
       )) {
-        if (event.type === 'text') {
-          fullResponse = event.content;
-          updateMessage(assistantMsgId, fullResponse);
-        } else if (event.type === 'image') {
-          detectedImages.push(event.content);
-        }
-      }
+        switch (chunk.type) {
+          case 'thinking':
+            updateMessageState(assistantMsgId, { isThinking: true, content: '' });
+            break;
 
-      // Check for generated images in the response
-      // Parse any base64 images from tool results
-      const imageMatches = fullResponse.match(
-        /["']?image_base64["']?\s*:\s*["']([A-Za-z0-9+/=]+)["']/g
-      );
-      
-      if (imageMatches) {
-        for (const match of imageMatches) {
-          const base64Match = match.match(/["']([A-Za-z0-9+/=]{100,})["']/);
-          if (base64Match) {
+          case 'text':
+            updateMessageState(assistantMsgId, { 
+              isThinking: false, 
+              content: chunk.content,
+              isStreaming: true,
+            });
+            break;
+
+          case 'tool_start':
+            addToolToMessage(assistantMsgId, {
+              name: chunk.toolName || 'unknown',
+              status: 'running',
+              args: chunk.toolArgs,
+            });
+            break;
+
+          case 'tool_end':
+            updateToolInMessage(assistantMsgId, chunk.toolName || 'unknown', {
+              status: 'completed',
+              result: chunk.content,
+            });
+            break;
+
+          case 'image':
+            // Add image to message
+            addImageToMessage(assistantMsgId, chunk.content);
+            
+            // Also add to gallery
             const design: GeneratedDesign = {
               id: `design-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-              imageBase64: base64Match[1],
+              imageBase64: chunk.content,
               prompt: userMessage,
               designType: 'generated',
               createdAt: new Date().toISOString(),
             };
             addDesign(design);
-          }
+            break;
+
+          case 'error':
+            updateMessageState(assistantMsgId, {
+              error: chunk.content,
+              isStreaming: false,
+              isThinking: false,
+            });
+            break;
+
+          case 'done':
+            updateMessageState(assistantMsgId, {
+              isStreaming: false,
+              isThinking: false,
+            });
+            break;
         }
       }
     } catch (error) {
       console.error('Error sending message:', error);
-      updateMessage(
-        assistantMsgId,
-        'Sorry, there was an error processing your request. Please try again.'
-      );
+      updateMessageState(assistantMsgId, {
+        content: 'Sorry, there was an error processing your request. Please try again.',
+        error: error instanceof Error ? error.message : 'Unknown error',
+        isStreaming: false,
+        isThinking: false,
+      });
     } finally {
       setIsGenerating(false);
     }
@@ -170,6 +255,10 @@ export function GenerationChat() {
     uploadedAssets,
     addMessage,
     updateMessage,
+    updateMessageState,
+    addToolToMessage,
+    updateToolInMessage,
+    addImageToMessage,
     setIsGenerating,
     setThreadId,
     addDesign,
@@ -278,15 +367,41 @@ export function GenerationChat() {
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
-                      {message.isStreaming && !message.content ? (
-                        <div className="flex items-center gap-2">
-                          <Loader2 className="w-4 h-4 animate-spin" />
+                      {/* Thinking State */}
+                      {message.isThinking && !message.content && (
+                        <motion.div 
+                          className="flex items-center gap-2"
+                          animate={{ opacity: [0.5, 1, 0.5] }}
+                          transition={{ duration: 1.5, repeat: Infinity }}
+                        >
+                          <Brain className="w-4 h-4 text-primary" />
                           <span className="text-sm">Thinking...</span>
+                        </motion.div>
+                      )}
+
+                      {/* Tool Activities */}
+                      {message.activeTools && message.activeTools.length > 0 && (
+                        <div className="space-y-2 mb-3">
+                          <AnimatePresence>
+                            {message.activeTools.map((tool) => (
+                              <ToolActivityDisplay key={tool.name} tool={tool} />
+                            ))}
+                          </AnimatePresence>
                         </div>
-                      ) : (
+                      )}
+
+                      {/* Message Text */}
+                      {message.content && (
                         <p className="whitespace-pre-wrap break-words">
                           {message.content}
                         </p>
+                      )}
+
+                      {/* Error Display */}
+                      {message.error && (
+                        <div className="mt-2 p-2 rounded-lg bg-red-500/10 text-red-500 text-sm">
+                          {message.error}
+                        </div>
                       )}
 
                       {/* Streaming indicator */}
@@ -300,7 +415,7 @@ export function GenerationChat() {
                     </div>
 
                     {/* Actions */}
-                    {message.role === 'assistant' && message.content && (
+                    {message.role === 'assistant' && message.content && !message.isStreaming && (
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <Button
@@ -327,8 +442,10 @@ export function GenerationChat() {
                   {message.images && message.images.length > 0 && (
                     <div className="mt-4 grid grid-cols-2 gap-2">
                       {message.images.map((img, i) => (
-                        <div
+                        <motion.div
                           key={i}
+                          initial={{ opacity: 0, scale: 0.9 }}
+                          animate={{ opacity: 1, scale: 1 }}
                           className="relative group rounded-lg overflow-hidden"
                         >
                           <img
@@ -336,12 +453,12 @@ export function GenerationChat() {
                             alt={`Generated design ${i + 1}`}
                             className="w-full h-auto"
                           />
-                          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                             <Button variant="secondary" size="icon">
                               <Maximize2 className="w-4 h-4" />
                             </Button>
                           </div>
-                        </div>
+                        </motion.div>
                       ))}
                     </div>
                   )}
@@ -413,4 +530,3 @@ export function GenerationChat() {
     </div>
   );
 }
-
