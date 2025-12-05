@@ -19,26 +19,45 @@ export function UploadZone({ onAnalyzeComplete }: UploadZoneProps) {
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
   const [urlInput, setUrlInput] = useState('');
   const [isScrapingUrl, setIsScrapingUrl] = useState(false);
+  const [urlError, setUrlError] = useState<string | null>(null);
   const { uploadedAssets, addAsset, removeAsset } = useDesignStore();
 
   const handleUrlSubmit = useCallback(async () => {
     if (!urlInput.trim() || isScrapingUrl) return;
 
     setIsScrapingUrl(true);
+    setUrlError(null);
     
-    // Add as a "URL" asset type
-    const id = `url-${Date.now()}`;
-    const asset: UploadedAsset = {
-      id,
-      name: new URL(urlInput).hostname,
-      type: 'document',
-      base64: btoa(urlInput), // Store URL as base64
-      preview: undefined,
-    };
-    
-    addAsset(asset);
-    setUrlInput('');
-    setIsScrapingUrl(false);
+    try {
+      // Auto-prepend https:// if missing
+      let normalizedUrl = urlInput.trim();
+      if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
+        normalizedUrl = `https://${normalizedUrl}`;
+      }
+      
+      // Validate URL
+      const parsedUrl = new URL(normalizedUrl);
+      
+      // Add as a "URL" asset type
+      const id = `url-${Date.now()}`;
+      const asset: UploadedAsset = {
+        id,
+        name: parsedUrl.hostname,
+        type: 'document',
+        base64: btoa(normalizedUrl), // Store URL as base64
+        preview: undefined,
+      };
+      
+      addAsset(asset);
+      setUrlInput('');
+    } catch (error) {
+      console.error('Invalid URL:', error);
+      setUrlError('Please enter a valid URL (e.g., example.com)');
+      // Clear error after 3 seconds
+      setTimeout(() => setUrlError(null), 3000);
+    } finally {
+      setIsScrapingUrl(false);
+    }
   }, [urlInput, isScrapingUrl, addAsset]);
 
   const processFile = useCallback(async (file: File) => {
@@ -130,28 +149,42 @@ export function UploadZone({ onAnalyzeComplete }: UploadZoneProps) {
               </p>
             </div>
           </div>
-          <div className="flex gap-3">
-            <Input
-              placeholder="https://example.com"
-              value={urlInput}
-              onChange={(e) => setUrlInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleUrlSubmit()}
-              className="flex-1 glass"
-            />
-            <Button
-              onClick={handleUrlSubmit}
-              disabled={!urlInput.trim() || isScrapingUrl}
-              className="bg-gradient-to-r from-accent to-primary hover:opacity-90"
-            >
-              {isScrapingUrl ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <>
-                  <Sparkles className="w-4 h-4 mr-2" />
-                  Extract
-                </>
-              )}
-            </Button>
+          <div className="space-y-2">
+            <div className="flex gap-3">
+              <Input
+                placeholder="example.com or https://example.com"
+                value={urlInput}
+                onChange={(e) => {
+                  setUrlInput(e.target.value);
+                  setUrlError(null);
+                }}
+                onKeyDown={(e) => e.key === 'Enter' && handleUrlSubmit()}
+                className={`flex-1 glass ${urlError ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
+              />
+              <Button
+                onClick={handleUrlSubmit}
+                disabled={!urlInput.trim() || isScrapingUrl}
+                className="bg-gradient-to-r from-accent to-primary hover:opacity-90"
+              >
+                {isScrapingUrl ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    Extract
+                  </>
+                )}
+              </Button>
+            </div>
+            {urlError && (
+              <motion.p
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="text-sm text-red-500"
+              >
+                {urlError}
+              </motion.p>
+            )}
           </div>
         </Card>
       </motion.div>
