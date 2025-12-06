@@ -42,10 +42,10 @@ const ProjectScopeUI = () => {
   ];
 
   // Helper class for the requested green borders
-  const borderClass = "border border-red-500";
+  const borderClass = "border border-green-500";
 
   return (
-    <div className="min-h-screen bg-[#0B0C0E] text-gray-300 font-sans selection:bg-red-500/30">
+    <div className="min-h-screen bg-[#0B0C0E] text-gray-300 font-sans selection:bg-green-500/30">
       {/* Header */}
       <header className={`flex items-center justify-between px-6 py-4 bg-[#0B0C0E] ${borderClass} border-t-0 border-x-0`}>
         <div className="flex items-center gap-8">
@@ -187,13 +187,13 @@ const ProjectScopeUI = () => {
                   <input 
                     type="text" 
                     defaultValue="P10" 
-                    className={`w-full bg-[#0B0C0E] text-white text-sm px-3 py-2.5 rounded focus:outline-none focus:ring-1 focus:ring-red-500 ${borderClass}`}
+                    className={`w-full bg-[#0B0C0E] text-white text-sm px-3 py-2.5 rounded focus:outline-none focus:ring-1 focus:ring-green-500 ${borderClass}`}
                   />
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs text-gray-500">Default IMP Content</label>
                   <div className="relative">
-                    <select className={`w-full bg-[#0B0C0E] text-gray-400 text-sm px-3 py-2.5 rounded appearance-none focus:outline-none focus:ring-1 focus:ring-red-500 ${borderClass}`}>
+                    <select className={`w-full bg-[#0B0C0E] text-gray-400 text-sm px-3 py-2.5 rounded appearance-none focus:outline-none focus:ring-1 focus:ring-green-500 ${borderClass}`}>
                       <option>Select</option>
                     </select>
                     <ChevronDown className="absolute right-3 top-3 w-4 h-4 text-gray-500 pointer-events-none" />
@@ -205,7 +205,7 @@ const ProjectScopeUI = () => {
                 <div className="space-y-1.5">
                   <label className="text-xs text-blue-500">Type</label>
                   <div className="relative">
-                    <select className={`w-full bg-[#0B0C0E] text-white text-sm px-3 py-2.5 rounded appearance-none focus:outline-none focus:ring-1 focus:ring-red-500 ${borderClass}`}>
+                    <select className={`w-full bg-[#0B0C0E] text-white text-sm px-3 py-2.5 rounded appearance-none focus:outline-none focus:ring-1 focus:ring-green-500 ${borderClass}`}>
                       <option>SAP</option>
                     </select>
                     <ChevronDown className="absolute right-3 top-3 w-4 h-4 text-gray-500 pointer-events-none" />
@@ -217,7 +217,7 @@ const ProjectScopeUI = () => {
                     <input 
                       type="text" 
                       placeholder="owner@mail.ch" 
-                      className={`w-full bg-[#0B0C0E] text-white text-sm px-3 py-2.5 pl-9 rounded focus:outline-none focus:ring-1 focus:ring-red-500 ${borderClass}`}
+                      className={`w-full bg-[#0B0C0E] text-white text-sm px-3 py-2.5 pl-9 rounded focus:outline-none focus:ring-1 focus:ring-green-500 ${borderClass}`}
                     />
                     <Mail className="absolute left-3 top-2.5 w-4 h-4 text-gray-500" />
                   </div>
@@ -228,7 +228,7 @@ const ProjectScopeUI = () => {
                 <div className="space-y-1.5">
                   <label className="text-xs text-gray-500">Version</label>
                   <div className="relative">
-                    <select className={`w-full bg-[#0B0C0E] text-white text-sm px-3 py-2.5 rounded appearance-none focus:outline-none focus:ring-1 focus:ring-red-500 ${borderClass}`}>
+                    <select className={`w-full bg-[#0B0C0E] text-white text-sm px-3 py-2.5 rounded appearance-none focus:outline-none focus:ring-1 focus:ring-green-500 ${borderClass}`}>
                       <option>ECC 6.0</option>
                     </select>
                     <ChevronDown className="absolute right-3 top-3 w-4 h-4 text-gray-500 pointer-events-none" />
@@ -239,7 +239,7 @@ const ProjectScopeUI = () => {
                   <input 
                     type="text" 
                     defaultValue="Kreuzlingen" 
-                    className={`w-full bg-[#0B0C0E] text-white text-sm px-3 py-2.5 rounded focus:outline-none focus:ring-1 focus:ring-red-500 ${borderClass}`}
+                    className={`w-full bg-[#0B0C0E] text-white text-sm px-3 py-2.5 rounded focus:outline-none focus:ring-1 focus:ring-green-500 ${borderClass}`}
                   />
                 </div>
               </div>
@@ -251,7 +251,7 @@ const ProjectScopeUI = () => {
                     <input 
                       type="text" 
                       defaultValue="Admin@mail.ch" 
-                      className={`w-full bg-[#0B0C0E] text-white text-sm px-3 py-2.5 pl-9 rounded focus:outline-none focus:ring-1 focus:ring-red-500 ${borderClass}`}
+                      className={`w-full bg-[#0B0C0E] text-white text-sm px-3 py-2.5 pl-9 rounded focus:outline-none focus:ring-1 focus:ring-green-500 ${borderClass}`}
                     />
                     <Mail className="absolute left-3 top-2.5 w-4 h-4 text-gray-500" />
                   </div>

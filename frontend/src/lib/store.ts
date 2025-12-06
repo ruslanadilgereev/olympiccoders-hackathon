@@ -9,6 +9,20 @@ export interface UploadedAsset {
   analyzedStyle?: StyleAnalysis;
 }
 
+// Workspace Session - each uploaded image gets its own session
+export interface WorkspaceSession {
+  id: string;
+  imageAsset: UploadedAsset;
+  threadId: string | null;
+  messages: Message[];
+  generatedCode: string;
+  codeHistory: string[];
+  isGenerating: boolean;
+  isCodeGenerating: boolean;
+  agentStatus: AgentStatus;
+  selectedElement: SelectedElement | null;
+}
+
 export interface StyleAnalysis {
   styleId: string;
   colors: ColorPalette;
@@ -93,7 +107,24 @@ export interface Message {
 }
 
 interface DesignStore {
-  // Assets
+  // Multi-Workspace Sessions
+  sessions: WorkspaceSession[];
+  activeSessionIndex: number;
+  addSession: (imageAsset: UploadedAsset) => void;
+  removeSession: (id: string) => void;
+  setActiveSession: (index: number) => void;
+  nextSession: () => void;
+  prevSession: () => void;
+  updateSession: (id: string, updates: Partial<WorkspaceSession>) => void;
+  addMessageToSession: (sessionId: string, message: Message) => void;
+  updateMessageInSession: (sessionId: string, messageId: string, updates: Partial<Message>) => void;
+  setSessionCode: (sessionId: string, code: string) => void;
+  setSessionGenerating: (sessionId: string, value: boolean) => void;
+  setSessionAgentPhase: (sessionId: string, phase: AgentPhase, message?: string, currentTool?: string) => void;
+  clearSessionMessages: (sessionId: string) => void;
+  getActiveSession: () => WorkspaceSession | null;
+
+  // Assets (legacy - still used for upload zone)
   uploadedAssets: UploadedAsset[];
   addAsset: (asset: UploadedAsset) => void;
   removeAsset: (id: string) => void;
@@ -149,8 +180,138 @@ interface DesignStore {
   setNeedsNewSession: (value: boolean) => void;
 }
 
-export const useDesignStore = create<DesignStore>((set) => ({
-  // Assets
+export const useDesignStore = create<DesignStore>((set, get) => ({
+  // Multi-Workspace Sessions
+  sessions: [],
+  activeSessionIndex: 0,
+  
+  addSession: (imageAsset) =>
+    set((state) => {
+      const newSession: WorkspaceSession = {
+        id: `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        imageAsset,
+        threadId: null,
+        messages: [],
+        generatedCode: '',
+        codeHistory: [],
+        isGenerating: false,
+        isCodeGenerating: false,
+        agentStatus: { phase: 'idle' },
+        selectedElement: null,
+      };
+      return {
+        sessions: [...state.sessions, newSession],
+        activeSessionIndex: state.sessions.length, // Switch to new session
+      };
+    }),
+    
+  removeSession: (id) =>
+    set((state) => {
+      const newSessions = state.sessions.filter((s) => s.id !== id);
+      const newIndex = Math.min(state.activeSessionIndex, Math.max(0, newSessions.length - 1));
+      return {
+        sessions: newSessions,
+        activeSessionIndex: newIndex,
+      };
+    }),
+    
+  setActiveSession: (index) =>
+    set((state) => ({
+      activeSessionIndex: Math.max(0, Math.min(index, state.sessions.length - 1)),
+    })),
+    
+  nextSession: () =>
+    set((state) => ({
+      activeSessionIndex: Math.min(state.activeSessionIndex + 1, state.sessions.length - 1),
+    })),
+    
+  prevSession: () =>
+    set((state) => ({
+      activeSessionIndex: Math.max(state.activeSessionIndex - 1, 0),
+    })),
+    
+  updateSession: (id, updates) =>
+    set((state) => ({
+      sessions: state.sessions.map((s) =>
+        s.id === id ? { ...s, ...updates } : s
+      ),
+    })),
+    
+  addMessageToSession: (sessionId, message) =>
+    set((state) => ({
+      sessions: state.sessions.map((s) =>
+        s.id === sessionId
+          ? { ...s, messages: [...s.messages, message] }
+          : s
+      ),
+    })),
+    
+  updateMessageInSession: (sessionId, messageId, updates) =>
+    set((state) => ({
+      sessions: state.sessions.map((s) =>
+        s.id === sessionId
+          ? {
+              ...s,
+              messages: s.messages.map((m) =>
+                m.id === messageId ? { ...m, ...updates } : m
+              ),
+            }
+          : s
+      ),
+    })),
+    
+  setSessionCode: (sessionId, code) =>
+    set((state) => ({
+      sessions: state.sessions.map((s) =>
+        s.id === sessionId
+          ? {
+              ...s,
+              codeHistory: s.generatedCode ? [...s.codeHistory.slice(-19), s.generatedCode] : s.codeHistory,
+              generatedCode: code,
+            }
+          : s
+      ),
+    })),
+    
+  setSessionGenerating: (sessionId, value) =>
+    set((state) => ({
+      sessions: state.sessions.map((s) =>
+        s.id === sessionId ? { ...s, isGenerating: value } : s
+      ),
+    })),
+    
+  setSessionAgentPhase: (sessionId, phase, message, currentTool) =>
+    set((state) => ({
+      sessions: state.sessions.map((s) =>
+        s.id === sessionId
+          ? {
+              ...s,
+              agentStatus: {
+                phase,
+                message,
+                currentTool,
+                startTime: phase !== 'idle' && phase !== 'complete'
+                  ? (s.agentStatus.startTime || Date.now())
+                  : undefined,
+              },
+            }
+          : s
+      ),
+    })),
+    
+  clearSessionMessages: (sessionId) =>
+    set((state) => ({
+      sessions: state.sessions.map((s) =>
+        s.id === sessionId ? { ...s, messages: [] } : s
+      ),
+    })),
+    
+  getActiveSession: () => {
+    const state = get();
+    return state.sessions[state.activeSessionIndex] || null;
+  },
+
+  // Assets (legacy)
   uploadedAssets: [],
   addAsset: (asset) =>
     set((state) => ({ uploadedAssets: [...state.uploadedAssets, asset] })),

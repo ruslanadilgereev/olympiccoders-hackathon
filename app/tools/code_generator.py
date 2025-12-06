@@ -61,8 +61,11 @@ client = genai.Client(
     http_options={"timeout": 120000},  # 120 seconds timeout
 )
 
-# Model to use for code generation
-GEMINI_MODEL = "gemini-3-pro-preview"
+# Model Configuration - Differentiated for speed vs quality
+# Pro for initial image analysis (quality matters)
+MODEL_IMAGE_TO_CODE = "gemini-3-pro-preview"
+# Flash for modifications (speed matters, code context already exists)  
+MODEL_MODIFY = "gemini-2.5-flash"
 
 # Store generated code for reference
 _generated_code: dict[str, dict] = {}
@@ -171,11 +174,11 @@ Requirements:
 
         user_prompt += "\n\nReturn the code in the structured JSON format specified."
 
-        log_progress("IMAGE_TO_CODE", "Step 3/4", "Calling Gemini Vision API...")
+        log_progress("IMAGE_TO_CODE", "Step 3/4", f"Calling {MODEL_IMAGE_TO_CODE}...")
         
-        # Call Gemini 3 Pro Vision with structured output
+        # Call Gemini Pro Vision with structured output
         response = client.models.generate_content(
-            model=GEMINI_MODEL,
+            model=MODEL_IMAGE_TO_CODE,
             contents=[
                 types.Content(
                     role="user",
@@ -186,8 +189,8 @@ Requirements:
                 ),
             ],
             config=types.GenerateContentConfig(
-                temperature=0.3,
-                max_output_tokens=16384,
+                temperature=0.2,
+                max_output_tokens=12000,
                 response_mime_type="application/json",
                 response_schema=CODE_OUTPUT_SCHEMA,
             ),
@@ -235,7 +238,7 @@ Requirements:
             "code_id": code_id,
             "preview_url": f"http://localhost:3000{preview_url}",
             "file_path": file_path,
-            "model_used": GEMINI_MODEL,
+            "model_used": MODEL_IMAGE_TO_CODE,
             "ai_notes": f"Successfully converted UI screenshot to {component_name} component with {len(generated_code)} characters of React + Tailwind code.",
         }
         
@@ -335,7 +338,7 @@ Apply the requested modification and return the complete updated code.
 Keep all other parts of the code unchanged.
 Return the code in the structured JSON format specified."""
 
-        log_progress("MODIFY_CODE", "Step 2/3", "Calling Gemini API...")
+        log_progress("MODIFY_CODE", "Step 2/3", f"Calling {MODEL_MODIFY} (fast)...")
         
         # Structured output schema for modifications
         modify_schema = {
@@ -354,11 +357,11 @@ Return the code in the structured JSON format specified."""
         }
 
         response = client.models.generate_content(
-            model=GEMINI_MODEL,
+            model=MODEL_MODIFY,
             contents=user_prompt,
             config=types.GenerateContentConfig(
-                temperature=0.3,
-                max_output_tokens=16384,
+                temperature=0.1,  # Lower for more predictable modifications
+                max_output_tokens=8192,
                 response_mime_type="application/json",
                 response_schema=modify_schema,
             ),
@@ -402,7 +405,7 @@ Return the code in the structured JSON format specified."""
             "file_path": file_path,
             "modification_applied": modification_request,
             "targeted_element": selected_element,
-            "model_used": GEMINI_MODEL,
+            "model_used": MODEL_MODIFY,
             "ai_notes": f"Modified code: {changes_summary}",
         }
         

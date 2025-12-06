@@ -584,6 +584,10 @@ export async function* streamMessage(
       errorMessage = '❌ Fehler bei der Anfrage. Bitte versuche es mit einem anderen Bild oder einer kürzeren Nachricht.';
     } else if (errorStr.includes('401') || errorStr.includes('Unauthorized')) {
       errorMessage = '🔑 API-Schlüssel ungültig. Bitte überprüfe die Konfiguration.';
+    } else if (errorStr.includes('404') || errorStr.includes('not found') || errorStr.includes('Not Found')) {
+      errorMessage = '🔄 Session abgelaufen. Bitte starte eine neue Session (Backend wurde neu gestartet).';
+      // Clear stored thread so next request creates a new one
+      clearStoredThread();
     } else if (errorStr.includes('500') || errorStr.includes('Internal')) {
       errorMessage = '💥 Server-Fehler. Bitte versuche es gleich nochmal.';
     } else if (errorStr.includes('timeout') || errorStr.includes('TIMEOUT')) {

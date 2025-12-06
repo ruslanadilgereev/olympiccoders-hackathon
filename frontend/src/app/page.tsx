@@ -10,17 +10,15 @@ import {
   ArrowRight,
   Zap,
   Palette,
-  Layers,
   ChevronRight,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { UploadZone } from '@/components/upload-zone';
-import { GenerationChat } from '@/components/generation-chat';
 import { DesignGallery } from '@/components/design-gallery';
+import { MultiWorkspace } from '@/components/multi-workspace';
 import { useDesignStore } from '@/lib/store';
-import { clearStoredThread } from '@/lib/langgraph-client';
 
 // Animated background particles
 function ParticleBackground() {
@@ -82,7 +80,7 @@ const FEATURES = [
 
 export default function Home() {
   const [showLanding, setShowLanding] = useState(true);
-  const { activeTab, setActiveTab, uploadedAssets, generatedDesigns, setNeedsNewSession, setThreadId } = useDesignStore();
+  const { activeTab, setActiveTab, uploadedAssets, generatedDesigns, addSession, sessions } = useDesignStore();
 
   // Skip landing if there are assets
   useEffect(() => {
@@ -264,6 +262,11 @@ export default function Home() {
                     <TabsTrigger value="studio" className="gap-2">
                       <MessageSquare className="w-4 h-4" />
                       <span className="hidden sm:inline">Studio</span>
+                      {sessions.length > 0 && (
+                        <Badge variant="secondary" className="ml-1 h-5 w-5 p-0 justify-center">
+                          {sessions.length}
+                        </Badge>
+                      )}
                     </TabsTrigger>
                     <TabsTrigger value="gallery" className="gap-2">
                       <Images className="w-4 h-4" />
@@ -321,17 +324,22 @@ export default function Home() {
                       </p>
                     </div>
                     <UploadZone onAnalyzeComplete={() => {
-                      // Signal that we need a new session when entering studio from upload
-                      setNeedsNewSession(true);
-                      setThreadId(null); // Clear current thread to force new one
-                      clearStoredThread(); // Clear localStorage
+                      // Create sessions for all uploaded image assets
+                      const imageAssets = uploadedAssets.filter(a => a.type === 'image');
+                      imageAssets.forEach(asset => {
+                        // Only add if not already a session
+                        const exists = sessions.some(s => s.imageAsset.id === asset.id);
+                        if (!exists) {
+                          addSession(asset);
+                        }
+                      });
                       setActiveTab('studio');
                     }} />
                   </motion.div>
                 </TabsContent>
 
                 <TabsContent value="studio" className="h-full m-0">
-                  <GenerationChat />
+                  <MultiWorkspace />
                 </TabsContent>
 
                 <TabsContent value="gallery" className="h-full m-0">
