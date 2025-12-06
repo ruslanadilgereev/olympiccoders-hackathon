@@ -1,7 +1,7 @@
 import { Client } from '@langchain/langgraph-sdk';
 
 const LANGGRAPH_API_URL = process.env.NEXT_PUBLIC_LANGGRAPH_API_URL || 
-  'https://olympiccoders-hackathon-4cbc14aed8d35bde940eb9ca1d8d82ab.eu.langgraph.app';
+  'http://127.0.0.1:2024';
 
 const LANGSMITH_API_KEY = process.env.NEXT_PUBLIC_LANGSMITH_API_KEY || '';
 
@@ -12,16 +12,40 @@ export const client = new Client({
 });
 
 export interface StreamChunk {
-  type: 'text' | 'tool_start' | 'tool_end' | 'image' | 'thinking' | 'done' | 'error';
+  type: 'text' | 'tool_start' | 'tool_end' | 'image' | 'code' | 'thinking' | 'done' | 'error';
   content: string;
   toolName?: string;
   toolArgs?: Record<string, unknown>;
   imageUrl?: string; // URL to load image from (instead of base64)
+  code?: string; // Generated code from image_to_code or modify_code
 }
 
 export async function createThread(): Promise<string> {
   const thread = await client.threads.create();
   return thread.thread_id;
+}
+
+// Helper to extract text content from various formats
+function extractTextContent(content: unknown): string {
+  if (typeof content === 'string') {
+    return content;
+  }
+  if (Array.isArray(content)) {
+    return content
+      .map((part) => {
+        if (typeof part === 'string') return part;
+        if (part?.text) return part.text;
+        if (part?.content) return extractTextContent(part.content);
+        return '';
+      })
+      .join('');
+  }
+  if (content && typeof content === 'object') {
+    const obj = content as Record<string, unknown>;
+    if (obj.text) return String(obj.text);
+    if (obj.content) return extractTextContent(obj.content);
+  }
+  return '';
 }
 
 export async function* streamMessage(
@@ -34,7 +58,7 @@ export async function* streamMessage(
         { type: 'text', text: message },
         ...images.map((img) => ({
           type: 'image_url',
-          image_url: { url: `data:image/png;base64,${img}` },
+          image_url: { url: `data:image/jpeg;base64,${img}` },
         })),
       ]
     : message;
@@ -49,42 +73,45 @@ export async function* streamMessage(
   };
 
   try {
-    // Stream with events mode for detailed updates
+    // Use messages-tuple mode for better compatibility with different models
     const stream = client.runs.stream(threadId, 'agent', {
       input,
-      streamMode: 'events',
+      streamMode: ['messages-tuple', 'values'],
     });
 
     let currentText = '';
     let lastYieldedText = '';
     const detectedImages: string[] = [];
     const activeTools: Set<string> = new Set();
+    let hasYieldedThinking = false;
 
     for await (const event of stream) {
       try {
         const eventType = event.event;
         const data = event.data as Record<string, unknown>;
 
+        // Debug log for development
+        // console.log('Event:', eventType, data);
+
         // Handle different event types
         switch (eventType) {
           case 'on_chat_model_start':
-            yield { type: 'thinking', content: 'Thinking...' };
+            if (!hasYieldedThinking) {
+              hasYieldedThinking = true;
+              yield { type: 'thinking', content: 'Thinking...' };
+            }
             break;
 
           case 'on_chat_model_stream':
-            // Streaming text chunks
+            // Streaming text chunks - handle various formats
             if (data?.chunk) {
-              const chunk = data.chunk as { content?: string | Array<{ text?: string }> };
-              let newContent = '';
+              const chunk = data.chunk as Record<string, unknown>;
+              let newContent = extractTextContent(chunk.content);
               
-              if (typeof chunk.content === 'string') {
-                newContent = chunk.content;
-              } else if (Array.isArray(chunk.content)) {
-                for (const part of chunk.content) {
-                  if (part.text) {
-                    newContent += part.text;
-                  }
-                }
+              // Also check for Gemini's format with kwargs
+              if (!newContent && chunk.kwargs) {
+                const kwargs = chunk.kwargs as Record<string, unknown>;
+                newContent = extractTextContent(kwargs.content);
               }
               
               if (newContent) {
@@ -100,13 +127,11 @@ export async function* streamMessage(
           case 'on_chat_model_end':
             // Model finished generating
             if (data?.output) {
-              const output = data.output as { content?: string | Array<{ text?: string }> };
-              if (typeof output.content === 'string') {
-                currentText = output.content;
-              } else if (Array.isArray(output.content)) {
-                currentText = output.content.map(p => p.text || '').join('');
-              }
-              if (currentText !== lastYieldedText) {
+              const output = data.output as Record<string, unknown>;
+              const outputContent = extractTextContent(output.content);
+              
+              if (outputContent && outputContent !== lastYieldedText) {
+                currentText = outputContent;
                 lastYieldedText = currentText;
                 yield { type: 'text', content: currentText };
               }
@@ -134,29 +159,44 @@ export async function* streamMessage(
             
             const toolOutput = data?.output;
             let toolResult = '';
+            let extractedCode: string | undefined;
             
             if (typeof toolOutput === 'string') {
-              toolResult = toolOutput;
+              // Try to parse if it's a JSON string
+              try {
+                const parsed = JSON.parse(toolOutput);
+                if (parsed.code && typeof parsed.code === 'string') {
+                  extractedCode = parsed.code;
+                }
+                toolResult = parsed.success ? 'Completed successfully' : (parsed.error || toolOutput);
+              } catch {
+                toolResult = toolOutput;
+              }
             } else if (toolOutput && typeof toolOutput === 'object') {
               const outputObj = toolOutput as Record<string, unknown>;
               
-              // Check for image generation results - now using filename instead of base64
-              // This saves ~200k tokens per image!
+              // Check for image generation results
               if (outputObj.filename) {
                 const filename = outputObj.filename as string;
                 const imageUrl = `/api/outputs/${filename}`;
                 detectedImages.push(imageUrl);
                 yield { type: 'image', content: filename, imageUrl };
               }
-              // Fallback: still support base64 for backwards compatibility
               else if (outputObj.image_base64) {
                 const imageData = outputObj.image_base64 as string;
                 detectedImages.push(imageData);
                 yield { type: 'image', content: imageData };
               }
               
+              // Check for code generation results
+              if (outputObj.code && typeof outputObj.code === 'string') {
+                extractedCode = outputObj.code;
+                console.log(`[LANGGRAPH] Code extracted from ${endToolName}: ${extractedCode.length} chars`);
+              }
+              
               if (outputObj.success) {
-                toolResult = outputObj.ai_notes as string || 'Completed successfully';
+                toolResult = outputObj.ai_notes as string || 
+                  (outputObj.code ? 'Code generated successfully' : 'Completed successfully');
               } else if (outputObj.error) {
                 toolResult = `Error: ${outputObj.error}`;
               } else {
@@ -164,6 +204,17 @@ export async function* streamMessage(
               }
             }
             
+            // Yield code chunk FIRST if we have code (so frontend updates immediately)
+            if (extractedCode) {
+              yield { 
+                type: 'code', 
+                content: extractedCode,
+                code: extractedCode,
+                toolName: endToolName,
+              };
+            }
+            
+            // Then yield the tool_end event
             yield { 
               type: 'tool_end', 
               content: toolResult,
@@ -172,13 +223,52 @@ export async function* streamMessage(
             break;
 
           case 'on_chain_end':
-            // Chain finished - might have final output
-            if (data?.output?.messages) {
-              const messages = data.output.messages as Array<{ content?: string }>;
-              const lastMsg = messages[messages.length - 1];
-              if (lastMsg?.content && typeof lastMsg.content === 'string') {
-                if (lastMsg.content !== lastYieldedText) {
-                  currentText = lastMsg.content;
+            // Chain finished - extract final messages
+            if (data?.output) {
+              const output = data.output as Record<string, unknown>;
+              if (output.messages && Array.isArray(output.messages)) {
+                const messages = output.messages;
+                const lastMsg = messages[messages.length - 1] as Record<string, unknown>;
+                if (lastMsg) {
+                  const msgContent = extractTextContent(lastMsg.content);
+                  if (msgContent && msgContent !== lastYieldedText) {
+                    currentText = msgContent;
+                    lastYieldedText = currentText;
+                    yield { type: 'text', content: currentText };
+                  }
+                }
+              }
+            }
+            break;
+
+          case 'messages':
+            // Direct messages event (from messages-tuple mode)
+            if (Array.isArray(data)) {
+              for (const item of data) {
+                if (Array.isArray(item) && item.length >= 2) {
+                  const [msgType, msgData] = item;
+                  if (msgType === 'ai' || msgType === 'AIMessageChunk') {
+                    const content = extractTextContent((msgData as Record<string, unknown>)?.content);
+                    if (content && content !== lastYieldedText) {
+                      currentText = content;
+                      lastYieldedText = currentText;
+                      yield { type: 'text', content: currentText };
+                    }
+                  }
+                }
+              }
+            }
+            break;
+
+          case 'values':
+            // Values mode - contains full state
+            if (data?.messages && Array.isArray(data.messages)) {
+              const messages = data.messages;
+              const lastMsg = messages[messages.length - 1] as Record<string, unknown>;
+              if (lastMsg?.type === 'ai' || lastMsg?.role === 'assistant') {
+                const msgContent = extractTextContent(lastMsg.content);
+                if (msgContent && msgContent !== lastYieldedText) {
+                  currentText = msgContent;
                   lastYieldedText = currentText;
                   yield { type: 'text', content: currentText };
                 }
@@ -191,12 +281,14 @@ export async function* streamMessage(
             break;
 
           default:
-            // Handle other events - try to extract useful content
+            // Try to extract content from any event with messages
             if (data?.messages && Array.isArray(data.messages)) {
-              const lastMsg = data.messages[data.messages.length - 1] as { content?: string; role?: string };
-              if (lastMsg?.role === 'assistant' && lastMsg?.content) {
-                if (typeof lastMsg.content === 'string' && lastMsg.content !== lastYieldedText) {
-                  currentText = lastMsg.content;
+              const lastMsg = data.messages[data.messages.length - 1] as Record<string, unknown>;
+              if (lastMsg) {
+                const msgContent = extractTextContent(lastMsg.content);
+                const isAssistant = lastMsg.role === 'assistant' || lastMsg.type === 'ai';
+                if (isAssistant && msgContent && msgContent !== lastYieldedText) {
+                  currentText = msgContent;
                   lastYieldedText = currentText;
                   yield { type: 'text', content: currentText };
                 }
@@ -209,7 +301,7 @@ export async function* streamMessage(
       }
     }
 
-    // Final check for filenames in the response text (new format)
+    // Final check for filenames in the response text
     const filenamePattern = /["']?filename["']?\s*:\s*["']([^"']+\.(?:png|jpg|jpeg|webp))["']/gi;
     let filenameMatch;
     while ((filenameMatch = filenamePattern.exec(currentText)) !== null) {
@@ -220,7 +312,7 @@ export async function* streamMessage(
       }
     }
     
-    // Fallback: check for base64 images (backwards compatibility)
+    // Fallback: check for base64 images
     const base64Pattern = /["']?image_base64["']?\s*:\s*["']([A-Za-z0-9+/=]{100,})["']/g;
     let match;
     while ((match = base64Pattern.exec(currentText)) !== null) {
@@ -234,9 +326,28 @@ export async function* streamMessage(
 
   } catch (error) {
     console.error('Stream error:', error);
+    
+    // Parse error message for better user feedback
+    let errorMessage = 'Failed to connect to AI';
+    const errorStr = error instanceof Error ? error.message : String(error);
+    
+    if (errorStr.includes('529') || errorStr.includes('overloaded')) {
+      errorMessage = '⏳ Die API ist gerade überlastet. Bitte warte kurz und versuche es erneut.';
+    } else if (errorStr.includes('400') || errorStr.includes('BadRequest')) {
+      errorMessage = '❌ Fehler bei der Anfrage. Bitte versuche es mit einem anderen Bild oder einer kürzeren Nachricht.';
+    } else if (errorStr.includes('401') || errorStr.includes('Unauthorized')) {
+      errorMessage = '🔑 API-Schlüssel ungültig. Bitte überprüfe die Konfiguration.';
+    } else if (errorStr.includes('500') || errorStr.includes('Internal')) {
+      errorMessage = '💥 Server-Fehler. Bitte versuche es gleich nochmal.';
+    } else if (errorStr.includes('timeout') || errorStr.includes('TIMEOUT')) {
+      errorMessage = '⏱️ Zeitüberschreitung. Die Anfrage hat zu lange gedauert.';
+    } else if (error instanceof Error) {
+      errorMessage = error.message;
+    }
+    
     yield { 
       type: 'error', 
-      content: error instanceof Error ? error.message : 'Failed to connect to AI' 
+      content: errorMessage
     };
     yield { type: 'done', content: '' };
   }

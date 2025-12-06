@@ -1,10 +1,14 @@
 """LangGraph Design Automation Agent with powerful tools."""
 
-from langchain_anthropic import ChatAnthropic
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.prebuilt import create_react_agent
+from langgraph.graph import StateGraph, START, END
+from langgraph.graph.message import add_messages
+from typing import Annotated, TypedDict
 
-from app.config import ANTHROPIC_API_KEY, ANTHROPIC_MODEL
+from app.config import GOOGLE_API_KEY
+from app.middleware.image_extractor import extract_images_from_state
 from app.tools.image_generator import (
     generate_design_image,
     get_generated_image,
@@ -28,96 +32,103 @@ from app.tools.url_scraper import (
     crawl_website_for_brand,
     extract_brand_identity,
 )
+from app.tools.code_generator import (
+    image_to_code,
+    modify_code,
+    get_generated_code,
+)
 
 
 # Global checkpointer for session persistence
 _checkpointer = MemorySaver()
 
+# Gemini model to use
+GEMINI_MODEL = "gemini-3-pro-preview"
 
 # System prompt for the Design Automation Agent
-DESIGN_AGENT_SYSTEM_PROMPT = """You are DesignForge AI, an expert AI-powered design assistant specializing in creating professional UI/UX mockups, marketing materials, and visual assets.
+DESIGN_AGENT_SYSTEM_PROMPT = """You are DesignForge AI, an AI that converts UI screenshots to React code.
 
-## Your Capabilities
+## RULE #1 - WHEN USER UPLOADS AN IMAGE
 
-1. **Style Analysis**: You can analyze existing designs to extract color palettes, typography, layout patterns, and overall design language using the `analyze_design_style` tool.
+**When a user uploads an image and asks to convert it to code, call the `image_to_code` tool.**
 
-2. **Design Generation**: You can create new designs using the `generate_design_image` tool. This includes:
-   - UI mockups (mobile apps, web apps, dashboards)
-   - Marketing banners and promotional graphics
-   - Landing page sections
-   - User flow diagrams
-   - Icon sets
+The image has already been extracted and stored - you just need to call the tool.
+Do NOT ask questions. Do NOT explain what you're going to do. Just call the tool.
 
-3. **Knowledge Management**: You can store and retrieve brand guidelines, UX documentation, and feature specifications using the knowledge store tools.
+Example:
+- User uploads image + "Convert this to React code"
+- You call: image_to_code(component_name="GeneratedUI", additional_instructions="Convert to React code")
 
-4. **URL Brand Extraction**: You can scrape websites to automatically extract brand colors, fonts, logos, and visual style using `extract_brand_identity` or `scrape_brand_from_url`. Just give a URL and get instant brand analysis!
+## CRITICAL: NEVER OUTPUT RAW CODE
 
-## Design Workflow
+**NEVER paste or output the generated code in your response!**
 
-When helping users, follow this workflow:
+The code is automatically saved to the sandbox. After calling `image_to_code` or `modify_code`:
+1. Tell the user the code was generated successfully
+2. Share the preview URL from the tool result
+3. DO NOT output the code itself - it's already in the sandbox!
 
-### For New Design Requests:
-1. **Understand Requirements**: Ask clarifying questions about the design purpose, target audience, and specific requirements.
-2. **Check Existing Style**: If the user has uploaded reference designs, use `analyze_design_style` to extract their visual language.
-3. **URL-Based Style**: If the user provides a website URL, use `extract_brand_identity` to automatically get their brand style.
-4. **Review Knowledge**: Use `retrieve_knowledge` to check for any stored guidelines or specifications.
-5. **Generate Design**: Use `generate_design_image` with the style context and specific requirements.
-6. **Iterate**: Offer to refine or create variations based on feedback.
+Example response after code generation:
+"✅ I've converted your UI to React + Tailwind code! 
+View the live preview: http://localhost:3000/preview?id=xxx"
 
-### For Style Analysis:
-1. Analyze the uploaded design comprehensively
-2. Present the extracted style guide in a clear, actionable format
-3. Suggest how this style can be applied to new designs
+## When There's NO Image
 
-## Design Best Practices
+If the user sends text without an image:
+- If they want a NEW design image created → use `generate_design_image`
+- If they want to modify existing code → use `modify_code`
+- If they want brand info from a URL → use `extract_brand_identity`
+- If they have questions → answer them
 
-Always apply these principles in generated designs:
-- **Visual Hierarchy**: Clear distinction between primary, secondary, and tertiary elements
-- **Consistency**: Uniform spacing, colors, and typography throughout
-- **Accessibility**: Sufficient color contrast and readable text sizes
-- **Modern Aesthetics**: Clean lines, appropriate white space, contemporary patterns
-- **Brand Alignment**: Respect uploaded style guides and brand identity
+## Your Tools
 
-## Communication Style
+1. `image_to_code` - Converts uploaded screenshots to React + Tailwind code (auto-saves to sandbox)
+2. `modify_code` - Modifies existing code based on user requests (auto-saves to sandbox)
+3. `generate_design_image` - Creates NEW design images from descriptions
+4. `extract_brand_identity` - Gets brand info from URLs
+5. `analyze_design_style` - Extracts style info from designs
 
-- Be enthusiastic and creative while remaining professional
-- Explain your design decisions when relevant
-- Proactively suggest improvements or alternatives
-- Use design terminology appropriately but accessibly
+## Response Style
 
-## Important Notes
+- Be brief and action-oriented
+- Don't ask unnecessary questions
+- Just do what needs to be done
+- Share the preview URL after generating code
+- NEVER paste raw code - it's in the sandbox!
 
-- When users upload images for style analysis, they will be provided as base64 encoded strings
-- Always confirm successful design generation and provide the image
-- If generation fails, explain what went wrong and suggest alternatives
-- Keep track of generated designs using `list_generated_images` for easy reference
+You are here to help designers create beautiful, consistent designs quickly!"""
 
-You are here to help designers and teams create beautiful, consistent designs quickly. Let's make something amazing together!"""
+
+class AgentState(TypedDict):
+    """State for the agent graph."""
+    messages: Annotated[list, add_messages]
 
 
 def create_agent_graph():
     """
-    Create the Design Automation Agent with all tools.
+    Create the Design Automation Agent with image extraction.
     
-    Features:
-    - Anthropic Claude as the LLM
-    - Gemini-powered image generation and analysis
-    - Knowledge storage for brand guidelines
-    - Automatic checkpointing for session persistence
+    This creates a custom graph that:
+    1. Extracts images from messages and stores in tool state
+    2. Runs the react agent with tools
     
     Returns:
         Compiled agent graph
     """
-    # Initialize Claude
-    model = ChatAnthropic(
-        model=ANTHROPIC_MODEL,
-        api_key=ANTHROPIC_API_KEY,
+    # Initialize Gemini
+    model = ChatGoogleGenerativeAI(
+        model=GEMINI_MODEL,
+        google_api_key=GOOGLE_API_KEY,
         temperature=0.7,
-        max_tokens=8192,
+        max_output_tokens=8192,
     )
     
     # Collect all tools
     tools = [
+        # Code generation tools (uses image from state)
+        image_to_code,
+        modify_code,
+        get_generated_code,
         # Image generation tools
         generate_design_image,
         get_generated_image,
@@ -139,15 +150,38 @@ def create_agent_graph():
         extract_brand_identity,
     ]
     
-    # Create react agent with tools
-    agent = create_react_agent(
+    # Create the base react agent
+    react_agent = create_react_agent(
         model=model,
         tools=tools,
-        checkpointer=_checkpointer,
         prompt=DESIGN_AGENT_SYSTEM_PROMPT,
     )
     
-    return agent
+    # Create a wrapper graph that extracts images first
+    def extract_images_node(state: AgentState) -> AgentState:
+        """Node that extracts images from messages and stores in tool state."""
+        extract_images_from_state(state)
+        return state
+    
+    def agent_node(state: AgentState) -> AgentState:
+        """Node that runs the react agent."""
+        result = react_agent.invoke(state)
+        return result
+    
+    # Build the graph
+    graph = StateGraph(AgentState)
+    
+    # Add nodes
+    graph.add_node("extract_images", extract_images_node)
+    graph.add_node("agent", agent_node)
+    
+    # Add edges
+    graph.add_edge(START, "extract_images")
+    graph.add_edge("extract_images", "agent")
+    graph.add_edge("agent", END)
+    
+    # Compile with checkpointer
+    return graph.compile(checkpointer=_checkpointer)
 
 
 # Export function for langgraph.json

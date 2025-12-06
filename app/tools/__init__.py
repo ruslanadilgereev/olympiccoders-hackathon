@@ -23,6 +23,11 @@ from app.tools.url_scraper import (
     crawl_website_for_brand,
     extract_brand_identity,
 )
+from app.tools.code_generator import (
+    image_to_code,
+    modify_code,
+    get_generated_code,
+)
 
 __all__ = [
     # Image generation
@@ -44,5 +49,9 @@ __all__ = [
     "scrape_brand_from_url",
     "crawl_website_for_brand",
     "extract_brand_identity",
+    # Code generation
+    "image_to_code",
+    "modify_code",
+    "get_generated_code",
 ]
 

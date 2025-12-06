@@ -1,0 +1,137 @@
+"""Image extraction for the design automation agent.
+
+Extracts images from incoming messages and stores them in tool state
+so tools can access them.
+"""
+import base64
+from typing import Any
+from langchain_core.messages import HumanMessage
+
+from app.tools.tool_state import set_image_in_state, clear_image_state
+
+
+def extract_image_from_messages(messages: list) -> tuple[bytes | None, str | None]:
+    """
+    Extract image data from the last HumanMessage if present.
+    
+    Supports:
+    - Base64 data URLs (data:image/jpeg;base64,...)
+    - Multimodal content blocks
+    
+    Returns:
+        Tuple of (image_bytes, mime_type) or (None, None)
+    """
+    if not messages:
+        return None, None
+    
+    # Find the last HumanMessage
+    last_human_msg = None
+    for msg in reversed(messages):
+        if isinstance(msg, HumanMessage):
+            last_human_msg = msg
+            break
+        elif hasattr(msg, 'type') and msg.type == 'human':
+            last_human_msg = msg
+            break
+        elif isinstance(msg, dict) and msg.get('role') == 'user':
+            last_human_msg = msg
+            break
+    
+    if not last_human_msg:
+        return None, None
+    
+    # Get content
+    if isinstance(last_human_msg, dict):
+        content = last_human_msg.get('content')
+    else:
+        content = getattr(last_human_msg, 'content', None)
+    
+    if not content:
+        return None, None
+    
+    # Handle multimodal content (list of parts)
+    if isinstance(content, list):
+        for part in content:
+            if isinstance(part, dict):
+                # Check for image_url type (OpenAI/Frontend format)
+                if part.get("type") == "image_url":
+                    url = part.get("image_url", {})
+                    if isinstance(url, dict):
+                        url = url.get("url", "")
+                    elif not isinstance(url, str):
+                        continue
+                    
+                    if url.startswith("data:"):
+                        return _parse_data_url(url)
+                
+                # Check for image type (LangGraph Studio format)
+                elif part.get("type") == "image":
+                    data = part.get("data")
+                    mime_type = part.get("mime_type", "image/jpeg")
+                    
+                    if data:
+                        if isinstance(data, str):
+                            try:
+                                return base64.b64decode(data), mime_type
+                            except Exception as e:
+                                print(f"  [WARNING] Failed to decode base64: {e}")
+                        elif isinstance(data, bytes):
+                            return data, mime_type
+                    
+                    # Anthropic format
+                    source = part.get("source", {})
+                    if source.get("type") == "base64":
+                        data = source.get("data", "")
+                        media_type = source.get("media_type", "image/jpeg")
+                        if data:
+                            return base64.b64decode(data), media_type
+    
+    return None, None
+
+
+def _parse_data_url(url: str) -> tuple[bytes | None, str | None]:
+    """Parse a data URL and extract the binary data and MIME type."""
+    try:
+        if not url.startswith("data:"):
+            return None, None
+        
+        parts = url.split(",", 1)
+        if len(parts) != 2:
+            return None, None
+        
+        header = parts[0]  # data:image/jpeg;base64
+        data = parts[1]    # base64 encoded data
+        
+        # Extract MIME type
+        mime_part = header.replace("data:", "").split(";")[0]
+        
+        # Decode base64
+        image_bytes = base64.b64decode(data)
+        
+        return image_bytes, mime_part
+    except Exception as e:
+        print(f"  [WARNING] Failed to parse data URL: {e}")
+        return None, None
+
+
+def extract_images_from_state(state: dict) -> dict:
+    """
+    Extract images from state messages and store in tool state.
+    
+    This function should be called before the agent processes messages.
+    """
+    messages = state.get("messages", [])
+    
+    # Extract image from messages
+    image_data, image_mime = extract_image_from_messages(messages)
+    
+    if image_data:
+        print(f"  📷 [IMAGE EXTRACTOR] Found image: {len(image_data)} bytes, mime: {image_mime}")
+        set_image_in_state(image_data, image_mime)
+    else:
+        print(f"  ⚠️ [IMAGE EXTRACTOR] No image found in messages")
+        clear_image_state()
+    
+    return state
+
+

@@ -46,6 +46,14 @@ export interface GeneratedDesign {
   aiNotes?: string;
 }
 
+export interface SelectedElement {
+  description: string;
+  path: string;
+  tagName: string;
+  textContent?: string;
+  outerHTML?: string;
+}
+
 export interface ToolActivity {
   name: string;
   status: 'running' | 'completed' | 'error';
@@ -63,6 +71,7 @@ export interface Message {
   isThinking?: boolean;
   activeTools?: ToolActivity[];
   error?: string;
+  codeGenerated?: boolean;
 }
 
 interface DesignStore {
@@ -88,6 +97,17 @@ interface DesignStore {
   updateToolInMessage: (id: string, toolName: string, updates: Partial<ToolActivity>) => void;
   addImageToMessage: (id: string, imageBase64: string) => void;
   clearMessages: () => void;
+
+  // Code Builder State
+  generatedCode: string;
+  setGeneratedCode: (code: string) => void;
+  codeHistory: string[];
+  pushCodeHistory: (code: string) => void;
+  undoCode: () => void;
+  selectedElement: SelectedElement | null;
+  setSelectedElement: (element: SelectedElement | null) => void;
+  isCodeGenerating: boolean;
+  setIsCodeGenerating: (value: boolean) => void;
 
   // UI State
   isGenerating: boolean;
@@ -175,6 +195,29 @@ export const useDesignStore = create<DesignStore>((set) => ({
       ),
     })),
   clearMessages: () => set({ messages: [] }),
+
+  // Code Builder State
+  generatedCode: '',
+  setGeneratedCode: (code) => set({ generatedCode: code }),
+  codeHistory: [],
+  pushCodeHistory: (code) =>
+    set((state) => ({
+      codeHistory: [...state.codeHistory.slice(-19), code], // Keep last 20
+    })),
+  undoCode: () =>
+    set((state) => {
+      if (state.codeHistory.length === 0) return state;
+      const newHistory = [...state.codeHistory];
+      const previousCode = newHistory.pop() || '';
+      return {
+        codeHistory: newHistory,
+        generatedCode: previousCode,
+      };
+    }),
+  selectedElement: null,
+  setSelectedElement: (element) => set({ selectedElement: element }),
+  isCodeGenerating: false,
+  setIsCodeGenerating: (value) => set({ isCodeGenerating: value }),
 
   // UI State
   isGenerating: false,

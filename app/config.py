@@ -7,11 +7,7 @@ try:
 except ImportError:
     pass
 
-# Anthropic Configuration
-ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
-ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL") or "claude-opus-4-5-20251101"
-
-# Google AI Configuration (for Gemini image generation)
+# Google AI Configuration (for Gemini - main AI engine)
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
 # Firecrawl Configuration (for URL scraping)
@@ -34,19 +30,12 @@ if LANGSMITH_TRACING == "true" and LANGSMITH_API_KEY:
     os.environ["LANGCHAIN_ENDPOINT"] = LANGSMITH_ENDPOINT
 
 # Validate configuration
-if not ANTHROPIC_API_KEY:
-    raise ValueError("ANTHROPIC_API_KEY environment variable must be set")
-
 if not GOOGLE_API_KEY:
-    print("[WARNING] GOOGLE_API_KEY not set - image generation will not work")
+    raise ValueError("GOOGLE_API_KEY environment variable must be set")
 
-print(f"[OK] Anthropic configured: {ANTHROPIC_MODEL}")
-
-if GOOGLE_API_KEY:
-    print("[OK] Google AI configured for image generation")
+print("[OK] Google AI configured (Gemini 3 Pro)")
 
 if LANGSMITH_TRACING == "true" and LANGSMITH_API_KEY:
     print(f"[OK] LangSmith Tracing enabled: Project '{LANGSMITH_PROJECT}'")
 else:
     print("[INFO] LangSmith Tracing disabled (set LANGSMITH_TRACING=true to enable)")
-

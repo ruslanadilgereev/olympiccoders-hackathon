@@ -1,17 +1,25 @@
-"""Style Analyzer Tool using Claude Opus 4 Vision API."""
+"""Style Analyzer Tool using Gemini 3 Pro Vision API."""
 
 import base64
 import json
 from typing import Optional
 
 from langchain_core.tools import tool
-import anthropic
+from google import genai
+from google.genai import types
 
-from app.config import ANTHROPIC_API_KEY
+from app.config import GOOGLE_API_KEY
+from app.tools.tool_state import get_image_from_state
 
 
-# Initialize Anthropic client
-client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+# Initialize Gemini client with extended timeout for image processing
+client = genai.Client(
+    api_key=GOOGLE_API_KEY,
+    http_options={"timeout": 120000},  # 120 seconds timeout
+)
+
+# Model to use - using stable 2.5 Flash for reliability
+GEMINI_MODEL = "gemini-3-pro-preview"
 
 # Store analyzed styles for reference
 _analyzed_styles: dict[str, dict] = {}
@@ -19,19 +27,19 @@ _analyzed_styles: dict[str, dict] = {}
 
 @tool
 def analyze_design_style(
-    image_base64: str,
     image_name: Optional[str] = None,
     analysis_focus: str = "comprehensive",
 ) -> dict:
     """
-    Analyze an existing design image to extract its visual style characteristics.
+    Analyze an uploaded design image to extract its visual style characteristics.
     
-    This tool uses Claude Opus 4's vision capabilities to understand colors, typography,
+    This tool uses Gemini 3 Pro's vision capabilities to understand colors, typography,
     layout patterns, and overall design language from uploaded design assets.
     
+    The image is automatically extracted from the user's message - you don't need
+    to pass the image data, just call this tool.
+    
     Args:
-        image_base64: Base64 encoded image data of the design to analyze.
-                     This should be the raw base64 string without data URL prefix.
         image_name: Optional name/identifier for this design asset.
         analysis_focus: What aspects to focus on. Options:
                        - "comprehensive": Full analysis of all design aspects
@@ -132,32 +140,35 @@ Return as structured JSON.""",
     analysis_prompt = focus_prompts.get(analysis_focus, focus_prompts["comprehensive"])
     
     try:
-        # Analyze with Claude Opus 4 Vision
-        message = client.messages.create(
-            model="claude-opus-4-5-20251101",
-            max_tokens=4096,
-            messages=[
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "image",
-                            "source": {
-                                "type": "base64",
-                                "media_type": "image/png",
-                                "data": image_base64,
-                            },
-                        },
-                        {
-                            "type": "text",
-                            "text": analysis_prompt,
-                        },
+        # Get image from tool state (extracted by middleware)
+        image_bytes, media_type = get_image_from_state()
+        
+        if not image_bytes:
+            return {
+                "error": "No image found. Please upload an image first.",
+            }
+        
+        print(f"  🎨 [ANALYZE_STYLE] Processing image: {len(image_bytes)} bytes, mime: {media_type}")
+        
+        # Analyze with Gemini 3 Pro Vision
+        response = client.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=[
+                types.Content(
+                    role="user",
+                    parts=[
+                        types.Part.from_bytes(data=image_bytes, mime_type=media_type or "image/jpeg"),
+                        types.Part.from_text(text=analysis_prompt),
                     ],
-                }
+                ),
             ],
+            config=types.GenerateContentConfig(
+                temperature=0.3,
+                max_output_tokens=4096,
+            ),
         )
         
-        analysis_text = message.content[0].text
+        analysis_text = response.text
         
         # Try to parse as JSON, otherwise structure the response
         try:
@@ -189,7 +200,7 @@ Return as structured JSON.""",
         
         return {
             "success": True,
-            "model_used": "claude-opus-4-5-20251101",
+            "model_used": GEMINI_MODEL,
             **style_guide,
         }
         
@@ -300,7 +311,7 @@ def compare_styles(style_id_1: str, style_id_2: str) -> dict:
     style1 = _analyzed_styles[style_id_1]
     style2 = _analyzed_styles[style_id_2]
     
-    # Use Claude to compare the styles
+    # Use Gemini to compare the styles
     try:
         comparison_prompt = f"""Compare these two design style analyses and identify:
 
@@ -317,22 +328,21 @@ STYLE 2:
 
 Provide a structured comparison."""
 
-        message = client.messages.create(
-            model="claude-opus-4-5-20251101",
-            max_tokens=4096,
-            messages=[
-                {
-                    "role": "user",
-                    "content": comparison_prompt,
-                }
-            ],
+        response = client.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=comparison_prompt,
+            config=types.GenerateContentConfig(
+                temperature=0.3,
+                max_output_tokens=4096,
+            ),
         )
         
         return {
             "success": True,
             "style_1": style_id_1,
             "style_2": style_id_2,
-            "comparison": message.content[0].text,
+            "comparison": response.text,
+            "model_used": GEMINI_MODEL,
         }
         
     except Exception as e:

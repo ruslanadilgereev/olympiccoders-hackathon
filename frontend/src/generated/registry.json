@@ -1,0 +1,83 @@
+{
+  "components": [
+    {
+      "id": "comp_1764985080068_m17liv",
+      "name": "TestComponent",
+      "filename": "TestComponent.tsx",
+      "createdAt": "2025-12-06T01:38:00.072Z",
+      "prompt": "Test component"
+    },
+    {
+      "id": "comp_1764990430155_u9u82a",
+      "name": "TransformationProjectDashboard",
+      "filename": "TransformationProjectDashboard.tsx",
+      "createdAt": "2025-12-06T03:07:10.157Z",
+      "prompt": "Use a dark theme (black/dark gray background) as shown. Replicate the top navigation bar, the project header with the 'NBH' logo placeholder, the tabbed navigation ('Project Scope', 'History Analysis', etc.), and the main data table with progress bars and action buttons. Ensure the layout is responsive."
+    },
+    {
+      "id": "comp_1764990789425_wiipcq",
+      "name": "TransformationProjectDashboard",
+      "filename": "TransformationProjectDashboard.tsx",
+      "createdAt": "2025-12-06T03:13:09.434Z",
+      "prompt": "Use a dark theme with black/dark gray background. Replicate the 'S/4 Transformation Project' header, the tab navigation bar with 'History Analysis' active, and the data table with progress bars (cyan/teal color). Include the blue 'OPEN JIVS IMP DEPLOYMENT' button at the bottom right."
+    },
+    {
+      "id": "comp_1764991043575_s9sb4e",
+      "name": "TransformationProjectDashboard",
+      "filename": "TransformationProjectDashboard.tsx",
+      "createdAt": "2025-12-06T03:17:23.590Z",
+      "prompt": "Use a dark theme as shown in the screenshot. Ensure the table layout is responsive. The design includes a top navigation bar, a project header with tabs, and a data table with progress bars and action buttons."
+    },
+    {
+      "id": "comp_1764991125761_s04xek",
+      "name": "TransformationProjectUI",
+      "filename": "TransformationProjectUI.tsx",
+      "createdAt": "2025-12-06T03:18:45.764Z",
+      "prompt": "Use a dark theme as shown in the screenshot. The UI includes a top navigation bar, a project header, a tabbed navigation menu (Project Scope, History Analysis, etc.), and a data table for 'History Analysis' with progress bars and action buttons. Match the dark background colors (#0f1115 or similar) and neon blue accents."
+    },
+    {
+      "id": "comp_1764991288669_m0nj5q",
+      "name": "Modified_4",
+      "filename": "Modified_4.tsx",
+      "createdAt": "2025-12-06T03:21:28.672Z",
+      "prompt": "Change the 'Open JIVS IMP Deployment' button color from blue to red. Update the background, hover state, and shadow to use red colors."
+    },
+    {
+      "id": "comp_1764991854494_t9puk3",
+      "name": "HistoryAnalysisDashboard",
+      "filename": "HistoryAnalysisDashboard.tsx",
+      "createdAt": "2025-12-06T03:30:54.497Z",
+      "prompt": ""
+    },
+    {
+      "id": "comp_1764992211525_6euewp",
+      "name": "TransformationProjectDashboard",
+      "filename": "TransformationProjectDashboard.tsx",
+      "createdAt": "2025-12-06T03:36:51.536Z",
+      "prompt": "Use a dark theme as shown in the screenshot. Pay attention to the navigation tabs, progress bars in the table, and the overall layout structure. The font should be clean and sans-serif."
+    },
+    {
+      "id": "comp_1764992329197_9s7xsl",
+      "name": "TransformationProject",
+      "filename": "TransformationProject.tsx",
+      "createdAt": "2025-12-06T03:38:49.206Z",
+      "prompt": "Use a dark theme as shown in the screenshot. The UI includes a top navigation bar, a project header, a tabbed navigation for project phases (Project Scope, History Analysis, etc.), and a data table for 'History Analysis' with progress bars and action buttons. Ensure the colors match the dark aesthetic (black/dark grey backgrounds, white text, blue accents)."
+    },
+    {
+      "id": "comp_1764992490453_titeal",
+      "name": "TransformationProject",
+      "filename": "TransformationProject.tsx",
+      "createdAt": "2025-12-06T03:41:30.461Z",
+      "prompt": "Convert this dark themed dashboard UI to React + Tailwind code. It features a project header, a tabbed navigation bar (Project Scope, History Analysis, etc.), and a 'History Analysis' section with a table showing System, Status with progress bars, Performance details, and Actions. The table has rows for PO1, PO2, PO3. There is a blue 'OPEN JIVS IMP DEPLOYMENT' button at the bottom right."
+    },
+    {
+      "id": "comp_1764992682738_h72owl",
+      "name": "ProjectDashboard",
+      "filename": "ProjectDashboard.tsx",
+      "createdAt": "2025-12-06T03:44:42.745Z",
+      "prompt": "Dark theme, responsive table, progress bars, tab navigation."
+    }
+  ],
+  "lastUpdated": "2025-12-06T03:44:42.745Z",
+  "activeComponent": "comp_1764992682738_h72owl"
+}

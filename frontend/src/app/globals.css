@@ -236,3 +236,54 @@
   background: rgba(139, 92, 246, 0.3);
   color: #fafafa;
 }
+
+/* Sandpack Styling */
+.sp-wrapper {
+  height: 100% !important;
+}
+
+.sp-layout {
+  height: 100% !important;
+  border: none !important;
+  background: transparent !important;
+}
+
+.sp-preview {
+  height: 100% !important;
+  background: var(--card) !important;
+}
+
+.sp-preview-container {
+  height: 100% !important;
+}
+
+.sp-preview-iframe {
+  background: var(--background) !important;
+}
+
+.sp-code-editor {
+  height: 100% !important;
+  background: var(--card) !important;
+}
+
+.sp-cm {
+  height: 100% !important;
+}
+
+/* Override Sandpack dark theme colors */
+.sp-wrapper .cm-editor {
+  background: var(--card) !important;
+}
+
+.sp-wrapper .cm-gutters {
+  background: var(--background) !important;
+  border-color: var(--border) !important;
+}
+
+.sp-wrapper .cm-activeLineGutter {
+  background: var(--muted) !important;
+}
+
+.sp-wrapper .cm-activeLine {
+  background: rgba(139, 92, 246, 0.1) !important;
+}

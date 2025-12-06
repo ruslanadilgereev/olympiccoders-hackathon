@@ -65,32 +65,38 @@ def scrape_brand_from_url(
         }
     
     try:
-        # Scrape the URL
-        result = client.scrape_url(
+        # Scrape the URL (firecrawl-py v2 uses .scrape() and returns Document object)
+        result = client.scrape(
             url,
-            params={
-                "formats": ["markdown", "html"],
-                "includeTags": ["img", "link", "meta", "style"],
-                "onlyMainContent": False,
-            }
+            formats=["markdown", "html"],
+            include_tags=["img", "link", "meta", "style"],
+            only_main_content=False,
         )
         
+        # Convert Document object to dict-like access
+        html_content = getattr(result, 'html', '') or ''
+        markdown_content = getattr(result, 'markdown', '') or ''
+        metadata = getattr(result, 'metadata_dict', {}) if hasattr(result, 'metadata_dict') else {}
+        if not metadata and hasattr(result, 'metadata'):
+            md = result.metadata
+            metadata = md.model_dump(exclude_none=True) if hasattr(md, 'model_dump') else (md or {})
+        
         # Extract brand-relevant information
-        brand_hints = _extract_brand_hints(result)
+        brand_hints = _extract_brand_hints({"html": html_content, "metadata": metadata})
         
         # Get images if requested
         images = []
-        if extract_images and result.get("html"):
-            images = _extract_image_urls(result.get("html", ""), url)
+        if extract_images and html_content:
+            images = _extract_image_urls(html_content, url)
         
         return {
             "success": True,
             "url": url,
-            "title": result.get("metadata", {}).get("title", ""),
-            "description": result.get("metadata", {}).get("description", ""),
-            "content": result.get("markdown", "")[:5000],  # Limit content size
+            "title": metadata.get("title", ""),
+            "description": metadata.get("description", ""),
+            "content": markdown_content[:5000],  # Limit content size
             "images": images[:20],  # Limit to 20 images
-            "metadata": result.get("metadata", {}),
+            "metadata": metadata,
             "brand_hints": brand_hints,
         }
         
@@ -187,42 +193,49 @@ def crawl_website_for_brand(
         }
     
     try:
-        # Start a crawl
-        crawl_result = client.crawl_url(
+        # Start a crawl (firecrawl-py v2 uses .crawl() and returns CrawlJob object)
+        crawl_result = client.crawl(
             url,
-            params={
-                "limit": max_pages,
-                "scrapeOptions": {
-                    "formats": ["markdown"],
-                }
-            },
+            limit=max_pages,
+            scrape_options={"formats": ["markdown", "html"]},
             poll_interval=2,
         )
+        
+        # Get documents from CrawlJob - it has a 'data' attribute with Document objects
+        documents = getattr(crawl_result, 'data', []) or []
         
         # Aggregate brand information
         all_colors = set()
         all_fonts = set()
-        all_images = []
         page_summaries = []
         
-        for page in crawl_result.get("data", []):
-            hints = _extract_brand_hints({"html": page.get("html", ""), "metadata": page.get("metadata", {})})
+        for page in documents:
+            # Handle Document objects
+            html_content = getattr(page, 'html', '') or ''
+            metadata = {}
+            if hasattr(page, 'metadata_dict'):
+                metadata = page.metadata_dict
+            elif hasattr(page, 'metadata') and page.metadata:
+                md = page.metadata
+                metadata = md.model_dump(exclude_none=True) if hasattr(md, 'model_dump') else {}
+            
+            hints = _extract_brand_hints({"html": html_content, "metadata": metadata})
             all_colors.update(hints.get("colors", []))
             all_fonts.update(hints.get("fonts", []))
             
             page_summaries.append({
-                "url": page.get("metadata", {}).get("sourceURL", ""),
-                "title": page.get("metadata", {}).get("title", ""),
+                "url": metadata.get("sourceURL", metadata.get("source_url", "")),
+                "title": metadata.get("title", ""),
             })
         
         return {
             "success": True,
             "url": url,
-            "pages_crawled": len(crawl_result.get("data", [])),
+            "pages_crawled": len(documents),
             "aggregated_colors": list(all_colors)[:15],
             "aggregated_fonts": list(all_fonts)[:10],
             "pages": page_summaries,
-            "brand_summary": f"Crawled {len(crawl_result.get('data', []))} pages from {url}",
+            "brand_summary": f"Crawled {len(documents)} pages from {url}",
         }
         
     except Exception as e:
