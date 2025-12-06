@@ -105,72 +105,7 @@ const ProjectDashboard = () => {
         <h2 className="text-2xl font-light text-zinc-400 mb-8">Project Scope</h2>
 
         <div className="grid grid-cols-12 gap-8">
-          {/* Left Column: Systems Lists */}
-          <div className="col-span-12 lg:col-span-7 space-y-10">
-            
-            {/* In Scope Section */}
-            <section>
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-normal text-zinc-200">In Scope</h3>
-                <button className="flex items-center gap-2 text-xs text-zinc-500 border border-green-500 px-3 py-1 rounded hover:text-zinc-300">
-                  <ArrowRight size={12} className="rotate-180" /> VIEW SCOPE
-                </button>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {inScopeSystems.map((sys) => (
-                  <div key={sys.id} className="bg-[#131316] border border-green-500 p-4 rounded flex flex-col gap-4">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <div className="text-[10px] text-zinc-500 uppercase">System ID</div>
-                        <div className="text-lg font-medium text-white">{sys.id}</div>
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-[10px] text-zinc-500 uppercase">Version</div>
-                      <div className="text-sm text-zinc-300">{sys.version}</div>
-                    </div>
-                    <button className="w-full py-1.5 mt-2 text-[10px] font-bold bg-[#1c1c21] border border-green-500 text-zinc-400 hover:text-white hover:border-red-500 hover:text-red-400 transition-colors rounded uppercase">
-                      Remove System
-                    </button>
-                  </div>
-                ))}
-                
-                {/* Add New Placeholder */}
-                <div className="border border-dashed border-green-500/50 rounded flex items-center justify-center min-h-[160px] cursor-pointer hover:bg-green-900/5 transition-colors group">
-                  <div className="w-8 h-8 rounded-full border border-zinc-600 flex items-center justify-center group-hover:border-green-500">
-                    <Plus size={16} className="text-zinc-500 group-hover:text-green-500" />
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            {/* Available Systems Section */}
-            <section>
-              <h3 className="text-lg font-normal text-zinc-200 mb-4">Available Systems</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {availableSystems.map((sys) => (
-                  <div key={sys.id} className="bg-[#131316] border border-green-500 p-4 rounded flex flex-col gap-4">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <div className="text-[10px] text-zinc-500 uppercase">System ID</div>
-                        <div className="text-lg font-medium text-white">{sys.id}</div>
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-[10px] text-zinc-500 uppercase">Version</div>
-                      <div className="text-sm text-zinc-300">{sys.version}</div>
-                    </div>
-                    <button className="w-full py-1.5 mt-2 text-[10px] font-bold bg-blue-600/10 border border-green-500 text-blue-400 hover:bg-blue-600 hover:text-white transition-colors rounded uppercase">
-                      Add System
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </section>
-          </div>
-
-          {/* Right Column: Add New Systems Form */}
+          {/* Left Column: Add New Systems Form */}
           <div className="col-span-12 lg:col-span-5">
             <div className="bg-[#131316] border border-green-500 rounded p-6 h-full relative">
               <h3 className="text-xl font-light text-zinc-200 mb-8">Add New Systems</h3>
@@ -267,6 +202,71 @@ const ProjectDashboard = () => {
                 </button>
               </div>
             </div>
+          </div>
+
+          {/* Right Column: Systems Lists */}
+          <div className="col-span-12 lg:col-span-7 space-y-10">
+            
+            {/* In Scope Section */}
+            <section>
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-normal text-zinc-200">In Scope</h3>
+                <button className="flex items-center gap-2 text-xs text-zinc-500 border border-green-500 px-3 py-1 rounded hover:text-zinc-300">
+                  <ArrowRight size={12} className="rotate-180" /> VIEW SCOPE
+                </button>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {inScopeSystems.map((sys) => (
+                  <div key={sys.id} className="bg-[#131316] border border-green-500 p-4 rounded flex flex-col gap-4">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <div className="text-[10px] text-zinc-500 uppercase">System ID</div>
+                        <div className="text-lg font-medium text-white">{sys.id}</div>
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] text-zinc-500 uppercase">Version</div>
+                      <div className="text-sm text-zinc-300">{sys.version}</div>
+                    </div>
+                    <button className="w-full py-1.5 mt-2 text-[10px] font-bold bg-[#1c1c21] border border-green-500 text-zinc-400 hover:text-white hover:border-red-500 hover:text-red-400 transition-colors rounded uppercase">
+                      Remove System
+                    </button>
+                  </div>
+                ))}
+                
+                {/* Add New Placeholder */}
+                <div className="border border-dashed border-green-500/50 rounded flex items-center justify-center min-h-[160px] cursor-pointer hover:bg-green-900/5 transition-colors group">
+                  <div className="w-8 h-8 rounded-full border border-zinc-600 flex items-center justify-center group-hover:border-green-500">
+                    <Plus size={16} className="text-zinc-500 group-hover:text-green-500" />
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {/* Available Systems Section */}
+            <section>
+              <h3 className="text-lg font-normal text-zinc-200 mb-4">Available Systems</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {availableSystems.map((sys) => (
+                  <div key={sys.id} className="bg-[#131316] border border-green-500 p-4 rounded flex flex-col gap-4">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <div className="text-[10px] text-zinc-500 uppercase">System ID</div>
+                        <div className="text-lg font-medium text-white">{sys.id}</div>
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] text-zinc-500 uppercase">Version</div>
+                      <div className="text-sm text-zinc-300">{sys.version}</div>
+                    </div>
+                    <button className="w-full py-1.5 mt-2 text-[10px] font-bold bg-blue-600/10 border border-green-500 text-blue-400 hover:bg-blue-600 hover:text-white transition-colors rounded uppercase">
+                      Add System
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </section>
           </div>
         </div>
       </main>

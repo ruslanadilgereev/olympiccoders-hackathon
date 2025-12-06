@@ -73,27 +73,179 @@ export async function* streamMessage(
   };
 
   try {
-    // Use messages-tuple mode for better compatibility with different models
+    // Use events mode to get tool_start/tool_end events for live updates
     const stream = client.runs.stream(threadId, 'agent', {
       input,
-      streamMode: ['messages-tuple', 'values'],
+      streamMode: ['events', 'messages-tuple', 'values'],
     });
+    
+    console.log('[LANGGRAPH] Stream started with events mode');
 
     let currentText = '';
     let lastYieldedText = '';
     const detectedImages: string[] = [];
     const activeTools: Set<string> = new Set();
     let hasYieldedThinking = false;
+    let hasYieldedCode = false; // Prevent duplicate code yields
 
     for await (const event of stream) {
       try {
-        const eventType = event.event;
+        // Cast to string to avoid TypeScript errors with SDK types
+        const eventType = event.event as string;
         const data = event.data as Record<string, unknown>;
 
-        // Debug log for development
-        // console.log('Event:', eventType, data);
+        // Debug log for development - enabled to track events
+        console.log('[LANGGRAPH] Event:', eventType, data);
 
-        // Handle different event types
+        // Handle 'events' type which contains nested event data
+        if (eventType === 'events' && data?.event) {
+          const nestedEvent = data.event as string;
+          const nestedData = data.data as Record<string, unknown>;
+          
+          console.log('[LANGGRAPH] Nested event:', nestedEvent, nestedData);
+          
+          // Handle tool events
+          if (nestedEvent === 'on_tool_start') {
+            const toolName = (data.name as string) || 'unknown_tool';
+            if (!hasYieldedThinking) {
+              hasYieldedThinking = true;
+              yield { type: 'thinking', content: 'Thinking...' };
+            }
+            activeTools.add(toolName);
+            yield { 
+              type: 'tool_start', 
+              content: `Using ${toolName}...`,
+              toolName,
+              toolArgs: nestedData as Record<string, unknown>,
+            };
+          } else if (nestedEvent === 'on_tool_end') {
+            const toolName = (data.name as string) || 'unknown_tool';
+            activeTools.delete(toolName);
+            
+            // Check for code in output
+            const output = nestedData?.output as Record<string, unknown>;
+            if (output?.code && typeof output.code === 'string' && !hasYieldedCode) {
+              console.log('[LANGGRAPH] Code found in tool output:', output.code.length, 'chars');
+              hasYieldedCode = true;
+              yield { 
+                type: 'code', 
+                content: 'Code generated',
+                code: output.code,
+                toolName,
+              };
+            }
+            
+            yield { 
+              type: 'tool_end', 
+              content: output?.ai_notes as string || 'Completed',
+              toolName,
+            };
+          } else if (nestedEvent === 'on_chat_model_stream') {
+            // Text streaming
+            const chunk = nestedData?.chunk as Record<string, unknown>;
+            if (chunk?.content) {
+              const newContent = extractTextContent(chunk.content);
+              if (newContent) {
+                currentText += newContent;
+                if (currentText !== lastYieldedText) {
+                  lastYieldedText = currentText;
+                  yield { type: 'text', content: currentText };
+                }
+              }
+            }
+          }
+        }
+        
+        // Handle 'messages' type which contains the full message array
+        if (eventType === 'messages' && Array.isArray(data)) {
+          // data is the tuple [message, metadata]
+          const message = data[0] as Record<string, unknown>;
+          if (message) {
+            // Check for tool calls
+            if (message.tool_calls && Array.isArray(message.tool_calls)) {
+              for (const toolCall of message.tool_calls) {
+                const tc = toolCall as Record<string, unknown>;
+                const toolName = tc.name as string;
+                if (toolName && !activeTools.has(toolName)) {
+                  activeTools.add(toolName);
+                  yield { 
+                    type: 'tool_start', 
+                    content: `Using ${toolName}...`,
+                    toolName,
+                    toolArgs: tc.args as Record<string, unknown>,
+                  };
+                }
+              }
+            }
+            
+            // Check for tool message with code result
+            if (message.type === 'tool' && message.content && !hasYieldedCode) {
+              try {
+                const content = typeof message.content === 'string' 
+                  ? JSON.parse(message.content) 
+                  : message.content;
+                if (content?.code && typeof content.code === 'string') {
+                  console.log('[LANGGRAPH] Code found in tool message:', content.code.length, 'chars');
+                  hasYieldedCode = true;
+                  const toolName = message.name as string || 'image_to_code';
+                  activeTools.delete(toolName);
+                  yield { 
+                    type: 'tool_end', 
+                    content: content.ai_notes || 'Code generated',
+                    toolName,
+                  };
+                  yield { 
+                    type: 'code', 
+                    content: 'Code generated',
+                    code: content.code,
+                    toolName,
+                  };
+                }
+              } catch {
+                // Not JSON, ignore
+              }
+            }
+            
+            // Check for AI message content
+            if ((message.type === 'ai' || message.role === 'assistant') && message.content) {
+              const msgContent = extractTextContent(message.content);
+              if (msgContent && msgContent !== lastYieldedText) {
+                currentText = msgContent;
+                lastYieldedText = currentText;
+                yield { type: 'text', content: currentText };
+              }
+            }
+          }
+        }
+        
+        // Handle 'values' type which contains the final state (fallback if code wasn't yielded yet)
+        if (eventType === 'values' && data?.messages && Array.isArray(data.messages) && !hasYieldedCode) {
+          const messages = data.messages as Record<string, unknown>[];
+          for (const msg of messages) {
+            // Look for tool messages with code
+            if (msg.type === 'tool' && msg.content && !hasYieldedCode) {
+              try {
+                const content = typeof msg.content === 'string' 
+                  ? JSON.parse(msg.content) 
+                  : msg.content;
+                if (content?.code && typeof content.code === 'string') {
+                  console.log('[LANGGRAPH] Code found in values (fallback):', content.code.length, 'chars');
+                  hasYieldedCode = true;
+                  yield { 
+                    type: 'code', 
+                    content: 'Code generated',
+                    code: content.code,
+                    toolName: msg.name as string || 'image_to_code',
+                  };
+                }
+              } catch {
+                // Not JSON, ignore
+              }
+            }
+          }
+        }
+
+        // Handle different event types (SDK types are incomplete, these work at runtime)
         switch (eventType) {
           case 'on_chat_model_start':
             if (!hasYieldedThinking) {
@@ -192,6 +344,9 @@ export async function* streamMessage(
               if (outputObj.code && typeof outputObj.code === 'string') {
                 extractedCode = outputObj.code;
                 console.log(`[LANGGRAPH] Code extracted from ${endToolName}: ${extractedCode.length} chars`);
+                console.log(`[LANGGRAPH] Code preview: ${extractedCode.substring(0, 100)}...`);
+              } else {
+                console.log(`[LANGGRAPH] No code in output for ${endToolName}:`, Object.keys(outputObj));
               }
               
               if (outputObj.success) {

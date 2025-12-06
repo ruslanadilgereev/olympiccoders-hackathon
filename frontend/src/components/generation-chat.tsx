@@ -26,6 +26,10 @@ import {
   Undo2,
   PanelLeftClose,
   PanelLeft,
+  ChevronDown,
+  ChevronUp,
+  ImageIcon,
+  X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -33,10 +37,237 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { useDesignStore, Message, GeneratedDesign, ToolActivity, SelectedElement } from '@/lib/store';
+import { useDesignStore, Message, GeneratedDesign, ToolActivity, SelectedElement, AgentPhase } from '@/lib/store';
 import { createThread, streamMessage } from '@/lib/langgraph-client';
 import { CodePreview } from '@/components/code-preview';
+import { AIGenerationExperience } from '@/components/ai-generation-experience';
 import { saveAndPreview, shouldAutoOpen } from '@/lib/auto-open';
+
+// Phase-specific styling and labels
+const PHASE_CONFIG: Record<AgentPhase, { color: string; bgColor: string; label: string; icon: string }> = {
+  idle: { color: 'text-muted-foreground', bgColor: 'bg-muted/20', label: 'Ready', icon: '⏸️' },
+  thinking: { color: 'text-blue-400', bgColor: 'bg-blue-500/10', label: 'Thinking', icon: '🧠' },
+  tool_running: { color: 'text-purple-400', bgColor: 'bg-purple-500/10', label: 'Running Tool', icon: '🔧' },
+  generating_code: { color: 'text-indigo-400', bgColor: 'bg-indigo-500/10', label: 'Generating Code', icon: '💻' },
+  saving: { color: 'text-green-400', bgColor: 'bg-green-500/10', label: 'Saving', icon: '💾' },
+  complete: { color: 'text-green-500', bgColor: 'bg-green-500/10', label: 'Complete', icon: '✅' },
+};
+
+// Agent Status Bar Component - Shows current agent activity prominently
+function AgentStatusBar({ 
+  isGenerating, 
+  isThinking,
+  activeTools,
+  streamingText,
+  agentPhase,
+  agentMessage,
+  currentTool,
+}: { 
+  isGenerating: boolean;
+  isThinking: boolean;
+  activeTools: ToolActivity[];
+  streamingText: string;
+  agentPhase: AgentPhase;
+  agentMessage?: string;
+  currentTool?: string;
+}) {
+  if (!isGenerating && agentPhase === 'idle') return null;
+  
+  const runningTool = activeTools.find(t => t.status === 'running');
+  const toolConfig = runningTool ? TOOL_CONFIG[runningTool.name] : 
+                     currentTool ? TOOL_CONFIG[currentTool] : null;
+  const phaseConfig = PHASE_CONFIG[agentPhase] || PHASE_CONFIG.thinking;
+  
+  // Calculate elapsed time if we have a running tool with startTime
+  const [elapsedTime, setElapsedTime] = useState(0);
+  useEffect(() => {
+    if (!runningTool?.startTime) {
+      setElapsedTime(0);
+      return;
+    }
+    
+    const interval = setInterval(() => {
+      setElapsedTime(Math.floor((Date.now() - runningTool.startTime!) / 1000));
+    }, 1000);
+    
+    return () => clearInterval(interval);
+  }, [runningTool?.startTime]);
+  
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20, scale: 0.95 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: 20, scale: 0.95 }}
+      className={`mb-3 rounded-xl ${phaseConfig.bgColor} border border-primary/20 overflow-hidden shadow-lg`}
+    >
+      {/* Main status content */}
+      <div className="p-3 flex items-center gap-3">
+        {/* Animated icon */}
+        <motion.div
+          className="w-10 h-10 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center flex-shrink-0"
+          animate={agentPhase !== 'complete' ? { 
+            boxShadow: [
+              '0 0 0 0 rgba(99, 102, 241, 0.4)',
+              '0 0 0 8px rgba(99, 102, 241, 0)',
+            ]
+          } : {}}
+          transition={{ duration: 1.5, repeat: Infinity }}
+        >
+          {agentPhase === 'complete' ? (
+            <motion.span
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ type: 'spring', stiffness: 500 }}
+              className="text-lg"
+            >
+              ✅
+            </motion.span>
+          ) : toolConfig ? (
+            <span className="text-lg">{toolConfig.icon}</span>
+          ) : (
+            <motion.div
+              animate={{ rotate: 360 }}
+              transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
+            >
+              <Sparkles className="w-5 h-5 text-white" />
+            </motion.div>
+          )}
+        </motion.div>
+        
+        {/* Status text */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className={`font-semibold text-sm ${phaseConfig.color}`}>
+              {toolConfig?.name || phaseConfig.label}
+            </span>
+            {agentPhase !== 'complete' && agentPhase !== 'idle' && (
+              <motion.div
+                className="flex gap-0.5"
+                animate={{ opacity: [1, 0.5, 1] }}
+                transition={{ duration: 1, repeat: Infinity }}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+                <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+                <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+              </motion.div>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground truncate">
+            {agentMessage || toolConfig?.description || 'Processing...'}
+          </p>
+        </div>
+        
+        {/* Time indicator */}
+        {elapsedTime > 0 && agentPhase !== 'complete' && (
+          <div className="text-xs text-muted-foreground font-mono">
+            {elapsedTime}s
+          </div>
+        )}
+      </div>
+      
+      {/* Progress bar */}
+      {agentPhase !== 'complete' && agentPhase !== 'idle' && (
+        <div className="h-1.5 bg-muted/30">
+          <motion.div
+            className="h-full bg-gradient-to-r from-primary via-accent to-primary"
+            initial={{ x: '-100%' }}
+            animate={{ x: '100%' }}
+            transition={{ duration: 1.2, repeat: Infinity, ease: 'linear' }}
+            style={{ width: '50%' }}
+          />
+        </div>
+      )}
+      
+      {/* Complete indicator */}
+      {agentPhase === 'complete' && (
+        <div className="h-1.5 bg-green-500" />
+      )}
+      
+      {/* Streaming text preview */}
+      {streamingText && streamingText.length > 0 && agentPhase !== 'complete' && (
+        <motion.div
+          initial={{ height: 0, opacity: 0 }}
+          animate={{ height: 'auto', opacity: 1 }}
+          className="px-3 py-2 bg-muted/20 border-t border-border/30"
+        >
+          <p className="text-xs text-muted-foreground line-clamp-2">
+            <span className="text-primary font-medium">Preview: </span>
+            {streamingText.slice(-150)}
+            <motion.span
+              className="inline-block w-1.5 h-3 ml-0.5 bg-primary"
+              animate={{ opacity: [1, 0] }}
+              transition={{ duration: 0.5, repeat: Infinity }}
+            />
+          </p>
+        </motion.div>
+      )}
+    </motion.div>
+  );
+}
+
+// Collapsible Uploaded Images Panel
+function UploadedImagesPanel({ 
+  images, 
+  isExpanded, 
+  onToggle 
+}: { 
+  images: { id: string; name: string; preview?: string; base64: string }[];
+  isExpanded: boolean;
+  onToggle: () => void;
+}) {
+  if (images.length === 0) return null;
+  
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="absolute top-2 right-2 z-20"
+    >
+      <div className="bg-background/95 backdrop-blur-sm border border-border rounded-lg shadow-lg overflow-hidden">
+        {/* Header - Always visible */}
+        <button
+          onClick={onToggle}
+          className="w-full px-3 py-2 flex items-center gap-2 hover:bg-muted/50 transition-colors"
+        >
+          <ImageIcon className="w-4 h-4 text-primary" />
+          <span className="text-sm font-medium">{images.length} Image{images.length > 1 ? 's' : ''}</span>
+          {isExpanded ? (
+            <ChevronUp className="w-4 h-4 ml-auto" />
+          ) : (
+            <ChevronDown className="w-4 h-4 ml-auto" />
+          )}
+        </button>
+        
+        {/* Expanded content */}
+        <AnimatePresence>
+          {isExpanded && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="border-t border-border"
+            >
+              <div className="p-2 grid grid-cols-2 gap-2 max-w-[280px] max-h-[300px] overflow-auto">
+                {images.map((img) => (
+                  <div key={img.id} className="relative group">
+                    <img
+                      src={img.preview || `data:image/jpeg;base64,${img.base64}`}
+                      alt={img.name}
+                      className="w-full h-24 object-cover rounded-md border border-border"
+                    />
+                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity rounded-md flex items-center justify-center">
+                      <p className="text-xs text-white text-center px-1 truncate">{img.name}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </motion.div>
+  );
+}
 
 const QUICK_PROMPTS = [
   {
@@ -61,25 +292,28 @@ const QUICK_PROMPTS = [
   },
 ];
 
-// Tool display config with descriptions
-const TOOL_CONFIG: Record<string, { icon: string; name: string; description: string; color: string }> = {
+// Tool display config with descriptions and detailed steps
+const TOOL_CONFIG: Record<string, { icon: string; name: string; description: string; color: string; steps?: string[] }> = {
   generate_design_image: {
     icon: '🎨',
     name: 'Generating Design',
     description: 'Creating a new design image based on your requirements...',
     color: 'text-purple-400',
+    steps: ['Analyzing prompt...', 'Generating image...', 'Optimizing output...'],
   },
   analyze_design_style: {
     icon: '🔍',
     name: 'Analyzing Style',
     description: 'Extracting colors, typography, and layout patterns...',
     color: 'text-blue-400',
+    steps: ['Scanning image...', 'Extracting colors...', 'Detecting typography...', 'Analyzing layout...'],
   },
   extract_brand_identity: {
     icon: '🌐',
     name: 'Extracting Brand',
     description: 'Scraping website to extract brand colors and styles...',
     color: 'text-cyan-400',
+    steps: ['Fetching website...', 'Parsing content...', 'Extracting brand elements...'],
   },
   get_style_context: {
     icon: '📋',
@@ -102,14 +336,16 @@ const TOOL_CONFIG: Record<string, { icon: string; name: string; description: str
   image_to_code: {
     icon: '💻',
     name: 'Converting to Code',
-    description: 'Analyzing UI screenshot and generating React + Tailwind code...',
+    description: 'Calling Gemini AI to analyze screenshot (this takes 60-90 seconds)...',
     color: 'text-indigo-400',
+    steps: ['Uploading image to AI...', 'AI is analyzing the layout...', 'Identifying UI components...', 'Generating React code...', 'Adding Tailwind styles...', 'Almost done...'],
   },
   modify_code: {
     icon: '✏️',
     name: 'Modifying Code',
     description: 'Applying your changes to the component code...',
     color: 'text-pink-400',
+    steps: ['Understanding request...', 'Locating element...', 'Applying changes...', 'Validating code...'],
   },
 };
 
@@ -121,66 +357,204 @@ function ToolActivityDisplay({ tool }: { tool: ToolActivity }) {
     color: 'text-gray-400',
   };
   
+  const [currentStep, setCurrentStep] = useState(0);
+  const steps = config.steps || [config.description];
+  
+  // Animate through steps when running - slower for long operations
+  useEffect(() => {
+    if (tool.status !== 'running' || !config.steps) return;
+    
+    // Longer interval for code generation tools (15 seconds per step)
+    const isLongOperation = tool.name === 'image_to_code' || tool.name === 'modify_code';
+    const stepDuration = isLongOperation ? 15000 : 3000;
+    
+    const interval = setInterval(() => {
+      setCurrentStep((prev) => (prev + 1) % steps.length);
+    }, stepDuration);
+    
+    return () => clearInterval(interval);
+  }, [tool.status, config.steps, steps.length, tool.name]);
+  
   return (
     <motion.div
-      initial={{ opacity: 0, y: -10 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -10 }}
-      className="rounded-lg border border-border/50 overflow-hidden"
+      initial={{ opacity: 0, y: -10, scale: 0.95 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: -10, scale: 0.95 }}
+      className="rounded-lg border border-border/50 overflow-hidden shadow-lg"
     >
       {/* Header */}
-      <div className={`flex items-center gap-3 py-2.5 px-3 ${
-        tool.status === 'running' ? 'bg-primary/10' : 
-        tool.status === 'completed' ? 'bg-green-500/10' : 'bg-red-500/10'
+      <div className={`flex items-center gap-3 py-3 px-4 ${
+        tool.status === 'running' ? 'bg-gradient-to-r from-primary/20 to-accent/10' : 
+        tool.status === 'completed' ? 'bg-gradient-to-r from-green-500/20 to-emerald-500/10' : 'bg-red-500/10'
       }`}>
-        <span className="text-lg">{config.icon}</span>
+        <motion.span 
+          className="text-xl"
+          animate={tool.status === 'running' ? { scale: [1, 1.2, 1] } : {}}
+          transition={{ duration: 1, repeat: Infinity }}
+        >
+          {config.icon}
+        </motion.span>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <span className={`font-medium ${config.color}`}>{config.name}</span>
-            {tool.status === 'running' && (
-              <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
-            )}
+            <span className={`font-semibold ${config.color}`}>{config.name}</span>
+            {/* Removed spinning loader - progress bar at bottom is cleaner */}
             {tool.status === 'completed' && (
-              <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ type: 'spring', stiffness: 500, damping: 15 }}
+              >
+                <CheckCircle2 className="w-4 h-4 text-green-500" />
+              </motion.div>
             )}
             {tool.status === 'error' && (
-              <XCircle className="w-3.5 h-3.5 text-red-500" />
+              <XCircle className="w-4 h-4 text-red-500" />
             )}
           </div>
           {tool.status === 'running' && (
-            <motion.p 
-              className="text-xs text-muted-foreground mt-0.5"
-              animate={{ opacity: [0.5, 1, 0.5] }}
-              transition={{ duration: 2, repeat: Infinity }}
-            >
-              {config.description}
-            </motion.p>
+            <AnimatePresence mode="wait">
+              <motion.p 
+                key={currentStep}
+                initial={{ opacity: 0, y: 5 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -5 }}
+                className="text-xs text-muted-foreground mt-1"
+              >
+                {steps[currentStep]}
+              </motion.p>
+            </AnimatePresence>
+          )}
+          {/* Show tool arguments for context */}
+          {tool.args && Object.keys(tool.args).length > 0 && (
+            <div className="mt-1.5 flex flex-wrap gap-1">
+              {Object.entries(tool.args).slice(0, 3).map(([key, value]) => {
+                // Skip large values like code or base64
+                const strValue = String(value);
+                if (strValue.length > 50 || key === 'code' || key === 'image') return null;
+                return (
+                  <span 
+                    key={key}
+                    className="text-[10px] px-1.5 py-0.5 rounded bg-muted/50 text-muted-foreground"
+                  >
+                    {key}: {strValue.length > 30 ? `${strValue.slice(0, 30)}...` : strValue}
+                  </span>
+                );
+              })}
+            </div>
           )}
         </div>
+        {/* Step counter */}
+        {tool.status === 'running' && config.steps && (
+          <div className="text-xs text-muted-foreground">
+            {currentStep + 1}/{steps.length}
+          </div>
+        )}
       </div>
       
       {/* Progress bar for running */}
       {tool.status === 'running' && (
-        <div className="h-1 bg-muted overflow-hidden">
+        <div className="h-1.5 bg-muted/50 overflow-hidden">
           <motion.div
             className="h-full bg-gradient-to-r from-primary via-accent to-primary"
             initial={{ x: '-100%' }}
             animate={{ x: '100%' }}
-            transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
-            style={{ width: '50%' }}
+            transition={{ duration: 1.2, repeat: Infinity, ease: 'linear' }}
+            style={{ width: '60%' }}
           />
         </div>
       )}
       
-      {/* Result summary */}
-      {tool.status === 'completed' && tool.result && (
-        <div className="px-3 py-2 bg-muted/30 text-xs text-muted-foreground border-t border-border/30">
-          {tool.name === 'image_to_code' || tool.name === 'modify_code' ? (
-            <span className="text-green-400">✓ Code generated successfully</span>
-          ) : (
-            <span className="truncate block">{tool.result.slice(0, 80)}...</span>
-          )}
+      {/* Step indicators for running */}
+      {tool.status === 'running' && config.steps && config.steps.length > 1 && (
+        <div className="px-4 py-2 flex gap-1.5">
+          {config.steps.map((_, idx) => (
+            <motion.div
+              key={idx}
+              className={`h-1 flex-1 rounded-full ${
+                idx <= currentStep ? 'bg-primary' : 'bg-muted'
+              }`}
+              animate={idx === currentStep ? { opacity: [0.5, 1, 0.5] } : {}}
+              transition={{ duration: 0.8, repeat: Infinity }}
+            />
+          ))}
         </div>
+      )}
+      
+      {/* Result summary - Enhanced with more details */}
+      {tool.status === 'completed' && (
+        <motion.div 
+          initial={{ height: 0, opacity: 0 }}
+          animate={{ height: 'auto', opacity: 1 }}
+          className="px-4 py-3 bg-muted/30 text-sm border-t border-border/30"
+        >
+          {tool.name === 'image_to_code' || tool.name === 'modify_code' ? (
+            <div className="flex items-center gap-2">
+              <Code2 className="w-4 h-4 text-green-400" />
+              <span className="text-green-400 font-medium">Code generated successfully</span>
+            </div>
+          ) : tool.name === 'generate_design_image' ? (
+            <div className="flex items-center gap-2">
+              <ImageIcon className="w-4 h-4 text-purple-400" />
+              <span className="text-purple-400 font-medium">Design image created</span>
+            </div>
+          ) : tool.name === 'analyze_design_style' ? (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Palette className="w-4 h-4 text-blue-400" />
+                <span className="text-blue-400 font-medium">Style analysis complete</span>
+              </div>
+              {tool.result && (
+                <p className="text-xs text-muted-foreground pl-6 line-clamp-2">
+                  {tool.result}
+                </p>
+              )}
+            </div>
+          ) : tool.name === 'extract_brand_identity' ? (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Layout className="w-4 h-4 text-cyan-400" />
+                <span className="text-cyan-400 font-medium">Brand identity extracted</span>
+              </div>
+              {tool.result && (
+                <p className="text-xs text-muted-foreground pl-6 line-clamp-2">
+                  {tool.result}
+                </p>
+              )}
+            </div>
+          ) : tool.result ? (
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-green-400" />
+                <span className="text-green-400 font-medium">Completed</span>
+              </div>
+              <p className="text-xs text-muted-foreground pl-6 line-clamp-3">
+                {tool.result.length > 200 ? `${tool.result.slice(0, 200)}...` : tool.result}
+              </p>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-green-400" />
+              <span className="text-green-400 font-medium">Completed</span>
+            </div>
+          )}
+        </motion.div>
+      )}
+      
+      {/* Error state */}
+      {tool.status === 'error' && tool.result && (
+        <motion.div 
+          initial={{ height: 0, opacity: 0 }}
+          animate={{ height: 'auto', opacity: 1 }}
+          className="px-4 py-3 bg-red-500/10 text-sm border-t border-red-500/30"
+        >
+          <div className="flex items-start gap-2">
+            <XCircle className="w-4 h-4 text-red-400 mt-0.5" />
+            <div>
+              <span className="text-red-400 font-medium">Error occurred</span>
+              <p className="text-xs text-red-300/70 mt-1">{tool.result}</p>
+            </div>
+          </div>
+        </motion.div>
       )}
     </motion.div>
   );
@@ -190,6 +564,8 @@ export function GenerationChat() {
   const [input, setInput] = useState('');
   const [copied, setCopied] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(true);
+  const [showUploadedImages, setShowUploadedImages] = useState(false);
+  const [demoMode, setDemoMode] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -218,6 +594,10 @@ export function GenerationChat() {
     setSelectedElement,
     isCodeGenerating,
     setIsCodeGenerating,
+    // Agent Status
+    agentStatus,
+    setAgentPhase,
+    resetAgentStatus,
   } = useDesignStore();
 
   // Clear chat and start new thread
@@ -312,6 +692,7 @@ export function GenerationChat() {
         switch (chunk.type) {
           case 'thinking':
             updateMessageState(assistantMsgId, { isThinking: true, content: '' });
+            setAgentPhase('thinking', 'Analyzing your request...');
             break;
 
           case 'text':
@@ -327,10 +708,14 @@ export function GenerationChat() {
               name: chunk.toolName || 'unknown',
               status: 'running',
               args: chunk.toolArgs,
+              startTime: Date.now(),
             });
             // Set code generating state for code tools
             if (chunk.toolName === 'image_to_code' || chunk.toolName === 'modify_code') {
               setIsCodeGenerating(true);
+              setAgentPhase('generating_code', 'Converting to React + Tailwind...', chunk.toolName);
+            } else {
+              setAgentPhase('tool_running', `Running ${chunk.toolName}...`, chunk.toolName);
             }
             break;
 
@@ -343,17 +728,21 @@ export function GenerationChat() {
             // Just mark code generation as complete - actual code is handled by 'code' chunk
             if (chunk.toolName === 'image_to_code' || chunk.toolName === 'modify_code') {
               setIsCodeGenerating(false);
+              setAgentPhase('saving', 'Saving to sandbox...');
             }
             break;
 
           case 'code':
             // Direct code chunk from langgraph client
+            console.log('[CODE CHUNK] Received:', chunk.code?.length, 'chars');
             if (chunk.code) {
+              console.log('[CODE CHUNK] Setting generated code...');
               setIsCodeGenerating(false);
               if (generatedCode) {
                 pushCodeHistory(generatedCode);
               }
               setGeneratedCode(chunk.code);
+              console.log('[CODE CHUNK] Code set successfully!');
               if (chunk.toolName === 'modify_code') {
                 setSelectedElement(null);
               }
@@ -394,6 +783,7 @@ export function GenerationChat() {
               isThinking: false,
             });
             setIsCodeGenerating(false);
+            resetAgentStatus();
             break;
 
           case 'done':
@@ -401,6 +791,9 @@ export function GenerationChat() {
               isStreaming: false,
               isThinking: false,
             });
+            setAgentPhase('complete', 'Done!');
+            // Reset after a short delay so user can see completion
+            setTimeout(() => resetAgentStatus(), 1500);
             break;
         }
       }
@@ -429,7 +822,11 @@ export function GenerationChat() {
         }, 2000);
       }
     } finally {
+      // Always reset all generation states
       setIsGenerating(false);
+      setIsCodeGenerating(false);
+      // Note: generatedCode in closure is stale, check store directly
+      console.log('[GENERATION] Complete');
     }
   }, [
     input,
@@ -452,6 +849,8 @@ export function GenerationChat() {
     pushCodeHistory,
     setSelectedElement,
     setIsCodeGenerating,
+    setAgentPhase,
+    resetAgentStatus,
   ]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -649,15 +1048,49 @@ export function GenerationChat() {
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex-1 min-w-0">
-                        {/* Thinking State */}
-                        {message.isThinking && !message.content && (
+                        {/* Thinking State - Enhanced */}
+                        {message.isThinking && !message.content && !message.activeTools?.length && (
                           <motion.div 
-                            className="flex items-center gap-2"
-                            animate={{ opacity: [0.5, 1, 0.5] }}
-                            transition={{ duration: 1.5, repeat: Infinity }}
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            className="flex items-center gap-3 py-2"
                           >
-                            <Brain className="w-4 h-4 text-primary" />
-                            <span className="text-sm">Thinking...</span>
+                            <motion.div
+                              className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary/30 to-accent/30 flex items-center justify-center"
+                              animate={{ 
+                                scale: [1, 1.1, 1],
+                                rotate: [0, 5, -5, 0]
+                              }}
+                              transition={{ duration: 2, repeat: Infinity }}
+                            >
+                              <Brain className="w-4 h-4 text-primary" />
+                            </motion.div>
+                            <div className="flex-1">
+                              <motion.span 
+                                className="text-sm font-medium text-primary"
+                                animate={{ opacity: [0.7, 1, 0.7] }}
+                                transition={{ duration: 1.5, repeat: Infinity }}
+                              >
+                                Analyzing your request...
+                              </motion.span>
+                              <div className="flex gap-1 mt-1.5">
+                                {[0, 1, 2].map((i) => (
+                                  <motion.div
+                                    key={i}
+                                    className="w-1.5 h-1.5 rounded-full bg-primary"
+                                    animate={{ 
+                                      scale: [1, 1.5, 1],
+                                      opacity: [0.3, 1, 0.3]
+                                    }}
+                                    transition={{ 
+                                      duration: 0.8, 
+                                      repeat: Infinity,
+                                      delay: i * 0.2
+                                    }}
+                                  />
+                                ))}
+                              </div>
+                            </div>
                           </motion.div>
                         )}
 
@@ -665,8 +1098,8 @@ export function GenerationChat() {
                         {message.activeTools && message.activeTools.length > 0 && (
                           <div className="space-y-2 mb-3">
                             <AnimatePresence>
-                              {message.activeTools.map((tool) => (
-                                <ToolActivityDisplay key={tool.name} tool={tool} />
+                              {message.activeTools.map((tool, index) => (
+                                <ToolActivityDisplay key={`${tool.name}-${index}-${tool.startTime || index}`} tool={tool} />
                               ))}
                             </AnimatePresence>
                           </div>
@@ -810,6 +1243,21 @@ export function GenerationChat() {
         {/* Input Area */}
         <div className="border-t border-border p-4 bg-background/80 backdrop-blur-xl">
           <div className="max-w-4xl mx-auto">
+            {/* Agent Status Bar */}
+            <AnimatePresence>
+              {(isGenerating || agentStatus.phase !== 'idle') && (
+                <AgentStatusBar 
+                  isGenerating={isGenerating}
+                  isThinking={messages[messages.length - 1]?.isThinking || false}
+                  activeTools={messages[messages.length - 1]?.activeTools || []}
+                  streamingText={messages[messages.length - 1]?.content || ''}
+                  agentPhase={agentStatus.phase}
+                  agentMessage={agentStatus.message}
+                  currentTool={agentStatus.currentTool}
+                />
+              )}
+            </AnimatePresence>
+
             {/* Selected Element Context */}
             {selectedElement && (
               <motion.div
@@ -902,24 +1350,50 @@ export function GenerationChat() {
             animate={{ width: '80%', opacity: 1 }}
             exit={{ width: 0, opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="h-screen flex-1 p-4"
+            className="h-screen flex-1 p-4 relative"
           >
-            <CodePreview
-              code={generatedCode}
-              onElementSelect={handleElementSelect}
-              selectedElement={selectedElement}
-              isLoading={isCodeGenerating}
-              onCodeUpdate={(newCode) => {
-                // Only update if we don't already have this code
-                if (newCode && newCode !== generatedCode) {
-                  console.log('[PREVIEW] Live code update received:', newCode.length, 'chars');
-                  if (generatedCode) {
-                    pushCodeHistory(generatedCode);
+            {/* Premium AI Generation Experience - Shows when agent is working OR demo mode */}
+            <AnimatePresence>
+              {(demoMode || ((isGenerating || isCodeGenerating) && uploadedAssets.length > 0)) && (
+                <AIGenerationExperience
+                  imageUrl={
+                    uploadedAssets.length > 0 
+                      ? (uploadedAssets[0].preview || `data:image/jpeg;base64,${uploadedAssets[0].base64}`)
+                      : 'https://images.unsplash.com/photo-1551650975-87deedd944c3?w=800&q=80'
                   }
-                  setGeneratedCode(newCode);
-                }
+                  imageName={uploadedAssets.length > 0 ? uploadedAssets[0].name : 'Demo Dashboard.png'}
+                  isGenerating={demoMode || isGenerating || isCodeGenerating}
+                  onComplete={() => {
+                    console.log('[AI Experience] Generation complete, transitioning to preview');
+                    if (demoMode) setDemoMode(false);
+                  }}
+                />
+              )}
+            </AnimatePresence>
+            
+            {/* Demo Button removed - was cluttering the UI */}
+
+            {/* Uploaded Images Panel removed - was cluttering the UI */}
+            
+            {/* Code Preview with entrance animation after generation */}
+            <motion.div
+              className="h-full"
+              initial={false}
+              animate={{ 
+                opacity: (isGenerating || isCodeGenerating) ? 0 : 1,
+                scale: (isGenerating || isCodeGenerating) ? 0.98 : 1,
+                filter: (isGenerating || isCodeGenerating) ? 'blur(4px)' : 'blur(0px)'
               }}
-            />
+              transition={{ duration: 0.5, delay: (isGenerating || isCodeGenerating) ? 0 : 0.3 }}
+            >
+              <CodePreview
+                code={generatedCode}
+                onElementSelect={handleElementSelect}
+                selectedElement={selectedElement}
+                isLoading={false}
+                key={`preview-${generatedCode.length}`}
+              />
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>

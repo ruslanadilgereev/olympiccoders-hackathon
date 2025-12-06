@@ -148,6 +148,8 @@ function PreviewContent() {
 
   // Fetch registry and selected component code
   useEffect(() => {
+    let hasFixedInvalidId = false;
+    
     async function fetchData() {
       try {
         // Fetch registry
@@ -156,16 +158,30 @@ function PreviewContent() {
           const data: Registry = await res.json();
           setRegistry(data);
 
-          // Auto-select component
-          const currentId = selectedId || data.activeComponent ||
-            (data.components.length > 0 ? data.components[data.components.length - 1].id : null);
+          // Auto-select component - prefer activeComponent, then latest
+          let currentId = selectedId;
           
+          // If current selection is invalid format, reset it (only log once)
+          if (currentId && !currentId.startsWith('comp_')) {
+            if (!hasFixedInvalidId) {
+              hasFixedInvalidId = true;
+            }
+            currentId = null;
+          }
+          
+          // Fall back to activeComponent or latest
+          if (!currentId) {
+            currentId = data.activeComponent ||
+              (data.components.length > 0 ? data.components[data.components.length - 1].id : null);
+          }
+          
+          // Update state if we found a valid ID different from current
           if (currentId && currentId !== selectedId) {
             setSelectedId(currentId);
           }
 
-          // Fetch code for selected component
-          if (currentId) {
+          // Fetch code for selected component (only if valid format)
+          if (currentId && currentId.startsWith('comp_')) {
             const codeRes = await fetch(`/api/generate?id=${currentId}&withCode=true`);
             if (codeRes.ok) {
               const compData = await codeRes.json();
@@ -175,8 +191,8 @@ function PreviewContent() {
             }
           }
         }
-      } catch (e) {
-        console.error('Failed to fetch:', e);
+      } catch {
+        // Silently fail on network errors
       }
     }
 
@@ -188,22 +204,31 @@ function PreviewContent() {
   // Fetch code when selection changes
   useEffect(() => {
     if (!selectedId) return;
+    // Only fetch if it's a valid component ID format
+    if (!selectedId.startsWith('comp_')) {
+      // Invalid ID - will be auto-corrected by the registry fetch
+      return;
+    }
 
     async function fetchCode() {
-      const codeRes = await fetch(`/api/generate?id=${selectedId}&withCode=true`);
-      if (codeRes.ok) {
-        const compData = await codeRes.json();
-        if (compData.code) {
-          setSelectedCode(compData.code);
+      try {
+        const codeRes = await fetch(`/api/generate?id=${selectedId}&withCode=true`);
+        if (codeRes.ok) {
+          const compData = await codeRes.json();
+          if (compData.code) {
+            setSelectedCode(compData.code);
+          }
         }
+      } catch {
+        // Silently fail
       }
     }
     fetchCode();
   }, [selectedId]);
 
-  // Update from URL
+  // Update from URL - but only if URL has a valid component ID
   useEffect(() => {
-    if (urlComponentId && urlComponentId !== selectedId) {
+    if (urlComponentId && urlComponentId !== selectedId && urlComponentId.startsWith('comp_')) {
       setSelectedId(urlComponentId);
     }
   }, [urlComponentId, selectedId]);

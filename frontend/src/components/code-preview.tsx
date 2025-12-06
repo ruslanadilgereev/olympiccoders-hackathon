@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import {
   SandpackProvider,
   SandpackPreview,
@@ -299,48 +299,26 @@ export function CodePreview({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [hoveredElement, setHoveredElement] = useState<{ description: string } | null>(null);
-  const [lastFetchedId, setLastFetchedId] = useState<string | null>(null);
 
-  // Poll for live code updates from the API
-  useEffect(() => {
-    let isMounted = true;
-    
-    const fetchLatestCode = async () => {
-      try {
-        const res = await fetch('/api/generate');
-        if (!res.ok || !isMounted) return;
-        
-        const data = await res.json();
-        const activeId = data.activeComponent;
-        
-        // Only fetch if there's an active component we haven't fetched yet
-        if (activeId && activeId !== lastFetchedId) {
-          const codeRes = await fetch(`/api/generate?id=${activeId}&withCode=true`);
-          if (!codeRes.ok || !isMounted) return;
-          
-          const compData = await codeRes.json();
-          if (compData.code && isMounted) {
-            setLastFetchedId(activeId);
-            onCodeUpdate?.(compData.code);
-          }
-        }
-      } catch (e) {
-        // Silently fail on network errors
-      }
-    };
-
-    // Poll every 1.5 seconds
-    const interval = setInterval(fetchLatestCode, 1500);
-    // Also fetch immediately
-    fetchLatestCode();
-    
-    return () => {
-      isMounted = false;
-      clearInterval(interval);
-    };
-  }, [lastFetchedId, onCodeUpdate]);
-
+  // Code comes only through props via streaming - no polling needed
   const displayCode = code || DEFAULT_CODE;
+  
+  // Debug: Log when code changes
+  useEffect(() => {
+    console.log('[CodePreview] Code prop changed:', code ? `${code.length} chars` : 'empty');
+  }, [code]);
+  
+  // Create a stable key for Sandpack based on code content to force re-render
+  const sandpackKey = useMemo(() => {
+    // Use a hash of the code to create a stable key
+    let hash = 0;
+    for (let i = 0; i < displayCode.length; i++) {
+      const char = displayCode.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32bit integer
+    }
+    return `sandpack-${hash}`;
+  }, [displayCode]);
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(displayCode);
@@ -605,13 +583,16 @@ body {
       {/* Content */}
       <div className="flex-1 overflow-hidden relative">
         <SandpackProvider
+          key={sandpackKey}
           template="react-ts"
           files={files}
           theme="dark"
           options={{
             initMode: 'immediate',
             autorun: true,
+            autoReload: true,
             recompileMode: 'immediate',
+            recompileDelay: 100,
             externalResources: [
               'https://cdn.tailwindcss.com',
             ],

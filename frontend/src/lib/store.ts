@@ -59,6 +59,24 @@ export interface ToolActivity {
   status: 'running' | 'completed' | 'error';
   args?: Record<string, unknown>;
   result?: string;
+  startTime?: number;
+}
+
+// Agent processing phases for detailed UI feedback
+export type AgentPhase = 
+  | 'idle'           // No activity
+  | 'thinking'       // Agent is analyzing the request
+  | 'tool_running'   // A tool is currently executing
+  | 'generating_code'// Specifically generating code
+  | 'saving'         // Saving to sandbox
+  | 'complete';      // Operation finished
+
+export interface AgentStatus {
+  phase: AgentPhase;
+  currentTool?: string;
+  message?: string;
+  startTime?: number;
+  progress?: number; // 0-100
 }
 
 export interface Message {
@@ -108,6 +126,11 @@ interface DesignStore {
   setSelectedElement: (element: SelectedElement | null) => void;
   isCodeGenerating: boolean;
   setIsCodeGenerating: (value: boolean) => void;
+
+  // Agent Status - Detailed tracking of agent phases
+  agentStatus: AgentStatus;
+  setAgentPhase: (phase: AgentPhase, message?: string, currentTool?: string) => void;
+  resetAgentStatus: () => void;
 
   // UI State
   isGenerating: boolean;
@@ -218,6 +241,23 @@ export const useDesignStore = create<DesignStore>((set) => ({
   setSelectedElement: (element) => set({ selectedElement: element }),
   isCodeGenerating: false,
   setIsCodeGenerating: (value) => set({ isCodeGenerating: value }),
+
+  // Agent Status - Detailed tracking
+  agentStatus: { phase: 'idle' },
+  setAgentPhase: (phase, message, currentTool) =>
+    set((state) => ({
+      agentStatus: {
+        phase,
+        message,
+        currentTool,
+        startTime: phase !== 'idle' && phase !== 'complete' 
+          ? (state.agentStatus.startTime || Date.now()) 
+          : undefined,
+        progress: phase === 'complete' ? 100 : state.agentStatus.progress,
+      },
+    })),
+  resetAgentStatus: () =>
+    set({ agentStatus: { phase: 'idle' } }),
 
   // UI State
   isGenerating: false,

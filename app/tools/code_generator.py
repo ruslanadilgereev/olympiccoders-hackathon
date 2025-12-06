@@ -4,6 +4,7 @@ import base64
 import json
 import urllib.request
 import urllib.error
+import time
 from typing import Optional
 
 from langchain_core.tools import tool
@@ -12,6 +13,15 @@ from google.genai import types
 
 from app.config import GOOGLE_API_KEY
 from app.tools.tool_state import get_image_from_state
+
+
+def log_progress(tool_name: str, step: str, details: str = ""):
+    """Log progress for tool execution - helps with debugging and UX."""
+    timestamp = time.strftime("%H:%M:%S")
+    if details:
+        print(f"  [{timestamp}] 🔄 [{tool_name}] {step}: {details}")
+    else:
+        print(f"  [{timestamp}] 🔄 [{tool_name}] {step}")
 
 # Frontend sandbox API URL
 SANDBOX_API_URL = "http://localhost:3000/api/generate"
@@ -124,7 +134,10 @@ def image_to_code(
         - success: Boolean indicating if generation succeeded
     """
     try:
+        log_progress("IMAGE_TO_CODE", "Starting", f"Component: {component_name}")
+        
         # Get image from tool state (extracted by middleware)
+        log_progress("IMAGE_TO_CODE", "Step 1/4", "Loading image from state")
         image_bytes, image_mime = get_image_from_state()
         
         if not image_bytes:
@@ -134,7 +147,7 @@ def image_to_code(
                 "component_name": component_name,
             }
         
-        print(f"  🎨 [IMAGE_TO_CODE] Processing image: {len(image_bytes)} bytes, mime: {image_mime}")
+        log_progress("IMAGE_TO_CODE", "Step 2/4", f"Image loaded: {len(image_bytes)} bytes, {image_mime}")
         
         # Build the prompt
         user_prompt = f"""{CODE_GENERATION_SYSTEM_PROMPT}
@@ -156,6 +169,8 @@ Requirements:
 
         user_prompt += "\n\nReturn the code in the structured JSON format specified."
 
+        log_progress("IMAGE_TO_CODE", "Step 3/4", "Calling Gemini Vision API...")
+        
         # Call Gemini 3 Pro Vision with structured output
         response = client.models.generate_content(
             model=GEMINI_MODEL,
@@ -176,6 +191,8 @@ Requirements:
             ),
         )
         
+        log_progress("IMAGE_TO_CODE", "Step 4/4", "Processing response...")
+        
         # Parse structured JSON output - clean and simple!
         result = json.loads(response.text)
         generated_code = result.get("code", "")
@@ -188,9 +205,10 @@ Requirements:
             "component_name": component_name,
         }
         
-        print(f"  ✅ [IMAGE_TO_CODE] Generated {len(generated_code)} chars of code")
+        log_progress("IMAGE_TO_CODE", "Complete", f"Generated {len(generated_code)} chars of code")
         
         # Auto-save to sandbox
+        log_progress("IMAGE_TO_CODE", "Saving", "Saving to sandbox...")
         sandbox_result = save_to_sandbox(generated_code, component_name, additional_instructions or "")
         
         # Always return the code so frontend can update sandbox immediately
@@ -212,6 +230,7 @@ Requirements:
             "preview_url": f"http://localhost:3000{preview_url}",
             "file_path": file_path,
             "model_used": GEMINI_MODEL,
+            "ai_notes": f"Successfully converted UI screenshot to {component_name} component with {len(generated_code)} characters of React + Tailwind code.",
         }
         
     except Exception as e:
@@ -265,6 +284,13 @@ def modify_code(
         - success: Boolean indicating if modification succeeded
     """
     try:
+        log_progress("MODIFY_CODE", "Starting", f"Request: {modification_request[:50]}...")
+        
+        if selected_element:
+            log_progress("MODIFY_CODE", "Step 1/3", f"Target element: {selected_element[:30]}...")
+        else:
+            log_progress("MODIFY_CODE", "Step 1/3", "Analyzing code structure...")
+        
         user_prompt = f"""You are an expert React developer. Modify the given code according to the user's request.
 Keep the code structure intact and only change what's necessary.
 Maintain the same coding style and conventions.
@@ -288,6 +314,8 @@ Apply the requested modification and return the complete updated code.
 Keep all other parts of the code unchanged.
 Return the code in the structured JSON format specified."""
 
+        log_progress("MODIFY_CODE", "Step 2/3", "Calling Gemini API...")
+        
         # Structured output schema for modifications
         modify_schema = {
             "type": "object",
@@ -315,12 +343,17 @@ Return the code in the structured JSON format specified."""
             ),
         )
         
+        log_progress("MODIFY_CODE", "Step 3/3", "Processing response...")
+        
         # Parse structured JSON output - clean!
         result = json.loads(response.text)
         modified_code = result.get("code", "")
         
+        log_progress("MODIFY_CODE", "Complete", f"Modified {len(modified_code)} chars of code")
+        
         # Auto-save to sandbox
         component_name = f"Modified_{len(_generated_code)}"
+        log_progress("MODIFY_CODE", "Saving", "Saving to sandbox...")
         sandbox_result = save_to_sandbox(modified_code, component_name, modification_request)
         
         preview_url = "/preview"
@@ -333,6 +366,8 @@ Return the code in the structured JSON format specified."""
         else:
             print(f"  ⚠️ [SANDBOX] Save failed: {sandbox_result.get('error')}")
         
+        changes_summary = result.get("changes_summary", "Code modified successfully")
+        
         # Always return code so frontend can update sandbox!
         return {
             "success": True,
@@ -343,6 +378,7 @@ Return the code in the structured JSON format specified."""
             "modification_applied": modification_request,
             "targeted_element": selected_element,
             "model_used": GEMINI_MODEL,
+            "ai_notes": f"Modified code: {changes_summary}",
         }
         
     except Exception as e:

@@ -76,8 +76,169 @@
       "filename": "ProjectDashboard.tsx",
       "createdAt": "2025-12-06T03:44:42.745Z",
       "prompt": "Dark theme, responsive table, progress bars, tab navigation."
+    },
+    {
+      "id": "comp_1765011257057_ng240d",
+      "name": "ProjectScopeDashboard",
+      "filename": "ProjectScopeDashboard.tsx",
+      "createdAt": "2025-12-06T08:54:17.058Z",
+      "prompt": "Convert this dashboard to React code. Improve the layout, spacing, and visual hierarchy. Make it look modern and professional with a dark theme as shown. Ensure responsive grid alignment for the cards."
+    },
+    {
+      "id": "comp_1765022915981_agn04g",
+      "name": "ProjectScopeDashboard",
+      "filename": "ProjectScopeDashboard.tsx",
+      "createdAt": "2025-12-06T12:08:35.983Z",
+      "prompt": "Improve the layout and spacing of the elements based on the screenshot."
+    },
+    {
+      "id": "comp_1765023405959_zb32mo",
+      "name": "TransformationDashboard",
+      "filename": "TransformationDashboard.tsx",
+      "createdAt": "2025-12-06T12:16:45.960Z",
+      "prompt": "Convert this dashboard to React code. Specifically, for the card labeled 'P01' (Object 1), change its border to a green color as requested. The rest of the design should match the screenshot (dark theme, S/4 Transformation Project dashboard)."
+    },
+    {
+      "id": "comp_1765023640236_kkvyog",
+      "name": "ProjectScopeDashboard",
+      "filename": "ProjectScopeDashboard.tsx",
+      "createdAt": "2025-12-06T12:20:40.237Z",
+      "prompt": "Change the border color to green (tausch die rahmenfabre in grün). Replicate the dark theme dashboard UI exactly as shown but use green for the borders."
+    },
+    {
+      "id": "comp_1765023963460_a3ae9k",
+      "name": "Modified_3",
+      "filename": "Modified_3.tsx",
+      "createdAt": "2025-12-06T12:26:03.461Z",
+      "prompt": "Change border color to green for the Available Systems cards and the View Scope/Collaborators buttons to match the theme."
+    },
+    {
+      "id": "comp_1765024279584_f88db8",
+      "name": "ProjectScopeDashboard",
+      "filename": "ProjectScopeDashboard.tsx",
+      "createdAt": "2025-12-06T12:31:19.585Z",
+      "prompt": "Replicate the UI exactly, but make all borders green (change all frames/borders to green)."
+    },
+    {
+      "id": "comp_1765024334587_pybs1p",
+      "name": "ProjectScopeDashboard",
+      "filename": "ProjectScopeDashboard.tsx",
+      "createdAt": "2025-12-06T12:32:14.589Z",
+      "prompt": "Replicate the dark theme UI exactly. Make all borders green as requested."
+    },
+    {
+      "id": "comp_1765024466528_1trwwx",
+      "name": "ProjectScopeUI",
+      "filename": "ProjectScopeUI.tsx",
+      "createdAt": "2025-12-06T12:34:26.529Z",
+      "prompt": "Replicate this UI, but make all borders green as requested."
+    },
+    {
+      "id": "comp_1765025119034_iqd56d",
+      "name": "ProjectScopeUI",
+      "filename": "ProjectScopeUI.tsx",
+      "createdAt": "2025-12-06T12:45:19.036Z",
+      "prompt": "Make all borders green as requested ('mach alle rahmen grün'). Replicate the dark theme dashboard for 'S/4 Transformation Project' with 'In Scope', 'Available Systems', and 'Add New Systems' sections."
+    },
+    {
+      "id": "comp_1765025231508_ub5znu",
+      "name": "Dashboard",
+      "filename": "Dashboard.tsx",
+      "createdAt": "2025-12-06T12:47:11.509Z",
+      "prompt": "Make all borders green as requested by the user ('mach alle rahmen grün'). Replicate the dark theme dashboard UI exactly but ensure all borders/frames are green."
+    },
+    {
+      "id": "comp_1765025445604_du1ugc",
+      "name": "ProjectScopeDashboard",
+      "filename": "ProjectScopeDashboard.tsx",
+      "createdAt": "2025-12-06T12:50:45.605Z",
+      "prompt": "Convert this UI to React code. Important: Make all borders and frames green as requested ('alle rahmen grün')."
+    },
+    {
+      "id": "comp_1765026044254_vfrg85",
+      "name": "ProjectDashboard",
+      "filename": "ProjectDashboard.tsx",
+      "createdAt": "2025-12-06T13:00:44.256Z",
+      "prompt": "Replicate the dark dashboard UI precisely. The user requested 'mac halle rahmen grün' (likely 'mach alle rahmen grün' meaning 'make all frames green'). Please apply a green border to the main cards or sections to satisfy this request while keeping the rest of the dark theme intact."
+    },
+    {
+      "id": "comp_1765026420980_6c7k60",
+      "name": "ProjectScopeUI",
+      "filename": "ProjectScopeUI.tsx",
+      "createdAt": "2025-12-06T13:07:00.982Z",
+      "prompt": "Convert the UI to React code. Important: Make all borders/frames green as requested by the user (\"mach alle rahmen grün\"). Ensure the dark theme is preserved but with green borders for cards, inputs, and sections."
+    },
+    {
+      "id": "comp_1765026616771_g36csn",
+      "name": "ProjectScopeUI",
+      "filename": "ProjectScopeUI.tsx",
+      "createdAt": "2025-12-06T13:10:16.773Z",
+      "prompt": "Convert this UI to React code. Important: Make all borders/frames green as requested by the user ('mach alle rahmen grün')."
+    },
+    {
+      "id": "comp_1765026896161_5rnkts",
+      "name": "ProjectScopeDashboard",
+      "filename": "ProjectScopeDashboard.tsx",
+      "createdAt": "2025-12-06T13:14:56.162Z",
+      "prompt": "Replicate this dashboard exactly, but make all borders (frames) green as requested (\"mach alle rahmen grün\"). This includes card borders, input field borders, and button borders. The theme is dark."
+    },
+    {
+      "id": "comp_1765027363603_nkbvfb",
+      "name": "ProjectScopeDashboard",
+      "filename": "ProjectScopeDashboard.tsx",
+      "createdAt": "2025-12-06T13:22:43.605Z",
+      "prompt": "make all borders green"
+    },
+    {
+      "id": "comp_1765028600434_91cvcg",
+      "name": "ProjectScopeUI",
+      "filename": "ProjectScopeUI.tsx",
+      "createdAt": "2025-12-06T13:43:20.435Z",
+      "prompt": "alle rahmen grün (Make all borders/frames green)"
+    },
+    {
+      "id": "comp_1765028603229_snd87p",
+      "name": "Generated_1765028603223",
+      "filename": "Generated_1765028603223.tsx",
+      "createdAt": "2025-12-06T13:43:23.231Z",
+      "prompt": "alle rahmen grün"
+    },
+    {
+      "id": "comp_1765028603261_vs0qqa",
+      "name": "Generated_1765028603255",
+      "filename": "Generated_1765028603255.tsx",
+      "createdAt": "2025-12-06T13:43:23.263Z",
+      "prompt": "alle rahmen grün"
+    },
+    {
+      "id": "comp_1765028861175_htg0on",
+      "name": "ProjectDashboard",
+      "filename": "ProjectDashboard.tsx",
+      "createdAt": "2025-12-06T13:47:41.177Z",
+      "prompt": "Make all borders/frames green as requested ('alle rahmen grün')."
+    },
+    {
+      "id": "comp_1765028865035_aal0gk",
+      "name": "Generated_1765028865031",
+      "filename": "Generated_1765028865031.tsx",
+      "createdAt": "2025-12-06T13:47:45.036Z",
+      "prompt": "alle rahmen grün"
+    },
+    {
+      "id": "comp_1765029044681_c0e1pp",
+      "name": "Generated_1765029044676",
+      "filename": "Generated_1765029044676.tsx",
+      "createdAt": "2025-12-06T13:50:44.694Z",
+      "prompt": "tauschen die seiten von den objekten unter dem header bar , also Add New Systems nach linnks und alles was gerade links ist dann rechts"
+    },
+    {
+      "id": "comp_1765029158872_mlqpf0",
+      "name": "Modified_7",
+      "filename": "Modified_7.tsx",
+      "createdAt": "2025-12-06T13:52:38.874Z",
+      "prompt": "Swap the positions of the two main columns. Move the 'Add New Systems' section to the left (make it the first child in the grid), and move the 'In Scope'/'Available Systems' lists to the right (make it the second child in the grid). Keep their respective column spans (5 for Add New Systems, 7 for lists)."
     }
   ],
-  "lastUpdated": "2025-12-06T03:44:42.745Z",
-  "activeComponent": "comp_1764992682738_h72owl"
+  "lastUpdated": "2025-12-06T13:52:38.874Z",
+  "activeComponent": "comp_1765029158872_mlqpf0"
 }
