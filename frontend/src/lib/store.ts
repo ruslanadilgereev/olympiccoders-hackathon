@@ -63,7 +63,7 @@ export interface ToolActivity {
 }
 
 // Agent processing phases for detailed UI feedback
-export type AgentPhase = 
+export type AgentPhase =
   | 'idle'           // No activity
   | 'thinking'       // Agent is analyzing the request
   | 'tool_running'   // A tool is currently executing
@@ -191,7 +191,7 @@ export const useDesignStore = create<DesignStore>((set) => ({
   addToolToMessage: (id, tool) =>
     set((state) => ({
       messages: state.messages.map((m) =>
-        m.id === id 
+        m.id === id
           ? { ...m, activeTools: [...(m.activeTools || []), tool], isThinking: false }
           : m
       ),
@@ -201,11 +201,11 @@ export const useDesignStore = create<DesignStore>((set) => ({
       messages: state.messages.map((m) =>
         m.id === id
           ? {
-              ...m,
-              activeTools: (m.activeTools || []).map((t) =>
-                t.name === toolName ? { ...t, ...updates } : t
-              ),
-            }
+            ...m,
+            activeTools: (m.activeTools || []).map((t) =>
+              t.name === toolName ? { ...t, ...updates } : t
+            ),
+          }
           : m
       ),
     })),
@@ -250,8 +250,8 @@ export const useDesignStore = create<DesignStore>((set) => ({
         phase,
         message,
         currentTool,
-        startTime: phase !== 'idle' && phase !== 'complete' 
-          ? (state.agentStatus.startTime || Date.now()) 
+        startTime: phase !== 'idle' && phase !== 'complete'
+          ? (state.agentStatus.startTime || Date.now())
           : undefined,
         progress: phase === 'complete' ? 100 : state.agentStatus.progress,
       },

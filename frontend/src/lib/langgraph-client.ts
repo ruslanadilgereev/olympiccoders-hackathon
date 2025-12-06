@@ -1,15 +1,30 @@
 import { Client } from '@langchain/langgraph-sdk';
 
-const LANGGRAPH_API_URL = process.env.NEXT_PUBLIC_LANGGRAPH_API_URL || 
-  'http://127.0.0.1:2024';
-
+const LANGGRAPH_API_URL =
+  process.env.NEXT_PUBLIC_LANGGRAPH_API_URL || 'http://127.0.0.1:2024';
 const LANGSMITH_API_KEY = process.env.NEXT_PUBLIC_LANGSMITH_API_KEY || '';
+const PRESET_ASSISTANT_ID = process.env.NEXT_PUBLIC_ASSISTANT_ID || '';
 
 // Initialize LangGraph client
 export const client = new Client({
   apiUrl: LANGGRAPH_API_URL,
   apiKey: LANGSMITH_API_KEY,
 });
+
+let cachedAssistantId: string | null = PRESET_ASSISTANT_ID || null;
+
+async function ensureAssistantId(): Promise<string> {
+  if (cachedAssistantId) return cachedAssistantId;
+
+  // Create a lightweight assistant for the graph if none was provided
+  const assistant = await client.assistants.create({
+    graphId: 'agent',
+    name: 'DesignForge Assistant',
+  });
+
+  cachedAssistantId = assistant.assistant_id;
+  return cachedAssistantId;
+}
 
 export interface StreamChunk {
   type: 'text' | 'tool_start' | 'tool_end' | 'image' | 'code' | 'thinking' | 'done' | 'error';
@@ -53,6 +68,8 @@ export async function* streamMessage(
   message: string,
   images?: string[]
 ): AsyncGenerator<StreamChunk> {
+  const assistantId = await ensureAssistantId();
+
   const messageContent = images?.length
     ? [
         { type: 'text', text: message },
@@ -74,7 +91,7 @@ export async function* streamMessage(
 
   try {
     // Use events mode to get tool_start/tool_end events for live updates
-    const stream = client.runs.stream(threadId, 'agent', {
+    const stream = client.runs.stream(threadId, assistantId || 'agent', {
       input,
       streamMode: ['events', 'messages-tuple', 'values'],
     });

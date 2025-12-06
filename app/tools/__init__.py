@@ -2,6 +2,7 @@
 
 from app.tools.image_generator import (
     generate_design_image,
+    generate_multiple_design_images,
     get_generated_image,
     list_generated_images,
 )
@@ -32,6 +33,7 @@ from app.tools.code_generator import (
 __all__ = [
     # Image generation
     "generate_design_image",
+    "generate_multiple_design_images",
     "get_generated_image",
     "list_generated_images",
     # Style analysis

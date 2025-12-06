@@ -28,17 +28,17 @@ export function UploadZone({ onAnalyzeComplete }: UploadZoneProps) {
 
     setIsScrapingUrl(true);
     setUrlError(null);
-    
+
     try {
       // Auto-prepend https:// if missing
       let normalizedUrl = urlInput.trim();
       if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
         normalizedUrl = `https://${normalizedUrl}`;
       }
-      
+
       // Validate URL
       const parsedUrl = new URL(normalizedUrl);
-      
+
       // Add as a "URL" asset type
       const id = `url-${Date.now()}`;
       const asset: UploadedAsset = {
@@ -48,7 +48,7 @@ export function UploadZone({ onAnalyzeComplete }: UploadZoneProps) {
         base64: btoa(normalizedUrl), // Store URL as base64
         preview: undefined,
       };
-      
+
       addAsset(asset);
       setUrlInput('');
     } catch (error) {

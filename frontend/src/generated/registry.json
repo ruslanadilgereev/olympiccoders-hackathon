@@ -237,8 +237,176 @@
       "filename": "Modified_7.tsx",
       "createdAt": "2025-12-06T13:52:38.874Z",
       "prompt": "Swap the positions of the two main columns. Move the 'Add New Systems' section to the left (make it the first child in the grid), and move the 'In Scope'/'Available Systems' lists to the right (make it the second child in the grid). Keep their respective column spans (5 for Add New Systems, 7 for lists)."
+    },
+    {
+      "id": "comp_1765033408038_3d9gfl",
+      "name": "UserTable",
+      "filename": "UserTable.tsx",
+      "createdAt": "2025-12-06T15:03:28.043Z",
+      "prompt": "Convert this UI screenshot to React + Tailwind code"
+    },
+    {
+      "id": "comp_1765033410931_zbyryz",
+      "name": "Generated_1765033410929",
+      "filename": "Generated_1765033410929.tsx",
+      "createdAt": "2025-12-06T15:03:30.934Z",
+      "prompt": "Convert this UI screenshot to React + Tailwind code"
+    },
+    {
+      "id": "comp_1765033450776_wopnmz",
+      "name": "Generated_1765033450765",
+      "filename": "Generated_1765033450765.tsx",
+      "createdAt": "2025-12-06T15:04:10.778Z",
+      "prompt": "can u swap the status and role order, first status then role"
+    },
+    {
+      "id": "comp_1765033506482_9rui68",
+      "name": "Modified_1",
+      "filename": "Modified_1.tsx",
+      "createdAt": "2025-12-06T15:05:06.489Z",
+      "prompt": "Swap the positions of the 'Role' and 'Status' columns. The order should be Name, Email, Status, then Role. Make sure to update both the header row and the data rows."
+    },
+    {
+      "id": "comp_1765035101729_hfd87h",
+      "name": "LoginForm",
+      "filename": "LoginForm.tsx",
+      "createdAt": "2025-12-06T15:31:41.732Z",
+      "prompt": "Wandle dieses Bild in React + Tailwind Code um"
+    },
+    {
+      "id": "comp_1765035193956_m59lbb",
+      "name": "Modified_1",
+      "filename": "Modified_1.tsx",
+      "createdAt": "2025-12-06T15:33:13.961Z",
+      "prompt": "Mache den Login-Button rot"
+    },
+    {
+      "id": "comp_1765035300273_p8xs35",
+      "name": "LoginForm",
+      "filename": "LoginForm.tsx",
+      "createdAt": "2025-12-06T15:35:00.276Z",
+      "prompt": "Wandle dieses Bild in React + Tailwind Code um"
+    },
+    {
+      "id": "comp_1765035373916_l74zg0",
+      "name": "Modified_1",
+      "filename": "Modified_1.tsx",
+      "createdAt": "2025-12-06T15:36:13.918Z",
+      "prompt": "Mache den Login-Button rot"
+    },
+    {
+      "id": "comp_1765035476513_nkuzi7",
+      "name": "LoginForm",
+      "filename": "LoginForm.tsx",
+      "createdAt": "2025-12-06T15:37:56.519Z",
+      "prompt": "Wandle dieses Bild in React + Tailwind Code um"
+    },
+    {
+      "id": "comp_1765035553123_ijsoh6",
+      "name": "Modified_1",
+      "filename": "Modified_1.tsx",
+      "createdAt": "2025-12-06T15:39:13.126Z",
+      "prompt": "Mache den Login-Button rot"
+    },
+    {
+      "id": "comp_1765035815692_jupqng",
+      "name": "LoginForm",
+      "filename": "LoginForm.tsx",
+      "createdAt": "2025-12-06T15:43:35.694Z",
+      "prompt": "Use modern minimalist design, match colors from image"
+    },
+    {
+      "id": "comp_1765035890936_0wijj9",
+      "name": "Modified_1",
+      "filename": "Modified_1.tsx",
+      "createdAt": "2025-12-06T15:44:50.941Z",
+      "prompt": "Make the login button red. Change its background color to red-600, hover to red-700, and update the shadow color to match the red theme."
+    },
+    {
+      "id": "comp_1765036102155_1zso1u",
+      "name": "LoginForm",
+      "filename": "LoginForm.tsx",
+      "createdAt": "2025-12-06T15:48:22.158Z",
+      "prompt": "Wandle dieses Bild in React + Tailwind Code um"
+    },
+    {
+      "id": "comp_1765036163597_jdswwe",
+      "name": "Modified_1",
+      "filename": "Modified_1.tsx",
+      "createdAt": "2025-12-06T15:49:23.606Z",
+      "prompt": "Mache den Login-Button rot"
+    },
+    {
+      "id": "comp_1765036374289_flxysg",
+      "name": "LoginForm",
+      "filename": "LoginForm.tsx",
+      "createdAt": "2025-12-06T15:52:54.297Z",
+      "prompt": "Modern login form with email and password fields, blue primary button, white card style"
+    },
+    {
+      "id": "comp_1765036420043_p6h5hm",
+      "name": "Modified_1",
+      "filename": "Modified_1.tsx",
+      "createdAt": "2025-12-06T15:53:40.046Z",
+      "prompt": "Make the login button red"
+    },
+    {
+      "id": "comp_1765036436417_0a6to1",
+      "name": "Modified_0",
+      "filename": "Modified_0.tsx",
+      "createdAt": "2025-12-06T15:53:56.421Z",
+      "prompt": "Make the login button red"
+    },
+    {
+      "id": "comp_1765036576014_juuq62",
+      "name": "Modified_0",
+      "filename": "Modified_0.tsx",
+      "createdAt": "2025-12-06T15:56:16.016Z",
+      "prompt": "Make the login button red"
+    },
+    {
+      "id": "comp_1765037174282_cwy3cm",
+      "name": "OCCLifecycleSimulation",
+      "filename": "OCCLifecycleSimulation.tsx",
+      "createdAt": "2025-12-06T16:06:14.287Z",
+      "prompt": "Create a comprehensive dashboard called 'OCCLifecycleSimulation'.\n1. **Visuals**: Replicate the dark theme, header, and 'Project Scope' layout from the screenshot perfectly.\n2. **Simulation Logic**: Implement a 4-step workflow corresponding to the tabs:\n   - **Step 1 (Project Scope)**: Allow adding systems (like P04) to In Scope. Show a success toast.\n   - **Step 2 (JiVS IMP Deployment)**: When clicking this tab, start a simulated progress bar for 'Azure Provisioning' and 'JiVS Installation'. Show logs. End with 'Environment Ready'.\n   - **Step 3 (Data Transfer)**: Create a view for this (maybe under 'Implementation' tab). Show a list of export items transitioning from Pending -> Success with a log console.\n   - **Step 4 (History Analysis)**: Create a dashboard with a Line Chart (use Recharts) showing data size reduction and a table of 'Run History'.\n3. **State**: Use React state to manage the active tab and the simulation progress of each step.\n4. **Dependencies**: Use `lucide-react` for icons and `recharts` for the analysis chart.\n5. **Language**: Keep UI text in English as per the screenshot, but follow the logic described in the German prompt."
+    },
+    {
+      "id": "comp_1765037183314_ujacrm",
+      "name": "Generated_1765037183304",
+      "filename": "Generated_1765037183304.tsx",
+      "createdAt": "2025-12-06T16:06:23.316Z",
+      "prompt": "OCC Context OCC manages projects that contain one or more systems. Work is performed within a project and against its systems. OCC itself has no direct SAP access. SAP admins use a SAP plugin to export tables/data to an export handling app, which reports transfer status back to OCC. A mediator app provisions the Azure target machine, installs and configures JiVS IMP on a customer-managed machine, and prepares the export handling app for incoming transfers. JiVS IMP (web app on the customer machine) can run analyses and expose results that OCC can surface.\n\n\nYour task:\n\"\"\"\nSimuliere innerhalb eines ausgewählten OCC-Projekts den vollständigen synthetischen Lifecycle in vier klar getrennten Szenen. Alle Daten, Stati, Benachrichtigungen und Zeitverläufe sind vollständig künstlich erzeugt. Es existieren keine echten Integrationen. Die Rollen von Export Handling App, Mediator, JiVS IMP und OCC müssen erkennbar bleiben.\n\n🔹 Szene 1 — Systemzuordnung\n\nStelle die Zuordnung eines oder mehrerer SAP-Systeme zum aktuell ausgewählten OCC-Projekt dar.\n\nDie Systeme erscheinen als neu verknüpft und bereit für weitere Schritte.\n\nZeige synthetische Statusmeldungen oder Bestätigungen (z. B. „System erfolgreich hinzugefügt“).\n\n🔹 Szene 2 — Installation & Umgebungsaufbau\n\nSimuliere den Start des Installationsprozesses für die Zielumgebung.\n\nStelle die Arbeit der Mediator App dar (z. B. Azure-Provisionierung, Installation/Konfiguration von JiVS IMP).\n\nZeige einen simulierten Fortschritt (z. B. 0–100 %) über künstliche Zeitverläufe.\n\nAm Ende: Status „Environment Ready“.\n\n🔹 Szene 3 — Datenübertragung\n\nPräsentiere eine Ansicht der Export Handling App-Transfers.\n\nTransfer-Items starten als Pending und wechseln sequentiell oder gruppenweise zu Success.\n\nZeige synthetische Logs, Meldungen oder Fortschrittsdetails.\n\n🔹 Szene 4 — Analyse & Ergebnisse\n\nSimuliere, dass JiVS IMP Analysen ausgeführt hat und OCC nun die Resultate darstellt.\n\nZeige mindestens einen Trendverlauf über mehrere Zeitpunkte (z. B. Größe, Anzahl Objekte, Komprimierungsgrad).\n\nBaue eine Run-History früherer Analysen ein (mind. 2 Einträge).\n\nErgebnisse sind rein synthetisch, aber konsistent und wiederholbar.\n\"\"\""
+    },
+    {
+      "id": "comp_1765037489354_e227p7",
+      "name": "OCCLifecycleSimulation",
+      "filename": "OCCLifecycleSimulation.tsx",
+      "createdAt": "2025-12-06T16:11:29.357Z",
+      "prompt": "Create a comprehensive dashboard simulating an OCC Project Lifecycle with 4 distinct scenes/tabs based on the visual style of the screenshot (Dark mode, blue accents).\n\nScene 1 (System Assignment): Replicate the screenshot's 'Project Scope' view with 'In Scope', 'Available Systems', and 'Add New Systems' functionality.\nScene 2 (Installation & Setup): Simulate Azure provisioning and JiVS IMP installation with progress bars and terminal logs.\nScene 3 (Data Transfer): Show Export Handling App transfers with items changing from Pending to Success.\nScene 4 (Analysis & Results): Show synthetic analysis charts (trends) and run history.\n\nInclude a navigation bar to switch between these 4 scenes. Use Tailwind CSS. Make sure the simulation is interactive (e.g., clicking 'Start' to see progress)."
+    },
+    {
+      "id": "comp_1765037500477_2ttqz8",
+      "name": "Generated_1765037500476",
+      "filename": "Generated_1765037500476.tsx",
+      "createdAt": "2025-12-06T16:11:40.479Z",
+      "prompt": "OCC Context OCC manages projects that contain one or more systems. Work is performed within a project and against its systems. OCC itself has no direct SAP access. SAP admins use a SAP plugin to export tables/data to an export handling app, which reports transfer status back to OCC. A mediator app provisions the Azure target machine, installs and configures JiVS IMP on a customer-managed machine, and prepares the export handling app for incoming transfers. JiVS IMP (web app on the customer machine) can run analyses and expose results that OCC can surface.\n\n\nYour task:\n\"\"\"\nSimuliere innerhalb eines ausgewählten OCC-Projekts den vollständigen synthetischen Lifecycle in vier klar getrennten Szenen. Alle Daten, Stati, Benachrichtigungen und Zeitverläufe sind vollständig künstlich erzeugt. Es existieren keine echten Integrationen. Die Rollen von Export Handling App, Mediator, JiVS IMP und OCC müssen erkennbar bleiben.\n\n🔹 Szene 1 — Systemzuordnung\n\nStelle die Zuordnung eines oder mehrerer SAP-Systeme zum aktuell ausgewählten OCC-Projekt dar.\n\nDie Systeme erscheinen als neu verknüpft und bereit für weitere Schritte.\n\nZeige synthetische Statusmeldungen oder Bestätigungen (z. B. „System erfolgreich hinzugefügt“).\n\n🔹 Szene 2 — Installation & Umgebungsaufbau\n\nSimuliere den Start des Installationsprozesses für die Zielumgebung.\n\nStelle die Arbeit der Mediator App dar (z. B. Azure-Provisionierung, Installation/Konfiguration von JiVS IMP).\n\nZeige einen simulierten Fortschritt (z. B. 0–100 %) über künstliche Zeitverläufe.\n\nAm Ende: Status „Environment Ready“.\n\n🔹 Szene 3 — Datenübertragung\n\nPräsentiere eine Ansicht der Export Handling App-Transfers.\n\nTransfer-Items starten als Pending und wechseln sequentiell oder gruppenweise zu Success.\n\nZeige synthetische Logs, Meldungen oder Fortschrittsdetails.\n\n🔹 Szene 4 — Analyse & Ergebnisse\n\nSimuliere, dass JiVS IMP Analysen ausgeführt hat und OCC nun die Resultate darstellt.\n\nZeige mindestens einen Trendverlauf über mehrere Zeitpunkte (z. B. Größe, Anzahl Objekte, Komprimierungsgrad).\n\nBaue eine Run-History früherer Analysen ein (mind. 2 Einträge).\n\nErgebnisse sind rein synthetisch, aber konsistent und wiederholbar.\n\"\"\""
+    },
+    {
+      "id": "comp_1765037840941_d9tanz",
+      "name": "OCCSimulation",
+      "filename": "OCCSimulation.tsx",
+      "createdAt": "2025-12-06T16:17:20.953Z",
+      "prompt": "Create a comprehensive React simulation of the 'OCC Project Lifecycle' with 4 distinct scenes as described below.\n\nUse the uploaded image as the VISUAL BASE for the layout (Header, Navigation Tabs, Dark Theme, Typography). The current tab should be dynamic based on the active scene.\n\nImplement a state machine to navigate through these 4 scenes:\n\n🔹 Scene 1: System Assignment (Systemzuordnung)\n- UI: A form or list to add SAP systems (like 'Available Systems' vs 'In Scope').\n- Action: User clicks to \"Add System\".\n- Feedback: Show a notification \"System successfully added\" and transition state to ready.\n\n🔹 Scene 2: Installation & Environment Setup (Installation & Umgebungsaufbau)\n- UI: A progress screen showing \"Mediator App\" activities (Azure provisioning, JiVS IMP installation).\n- Animation: Simulate a progress bar going 0-100% with changing status text (e.g., \"Provisioning Azure...\", \"Installing JiVS...\").\n- Final State: Show \"Environment Ready\".\n\n🔹 Scene 3: Data Transfer (Datenübertragung)\n- UI: A transfer list (Export Handling App).\n- Behavior: Items start as 'Pending' and sequentially turn to 'Success'.\n- Visuals: Show progress bars or status badges for each item.\n\n🔹 Scene 4: Analysis & Results (Analyse & Ergebnisse)\n- UI: A dashboard showing analysis results (JiVS IMP).\n- Content: At least one trend chart (use a mock chart component or CSS bars) showing size/objects over time.\n- History: A list of previous runs.\n\n**Technical Requirements:**\n- Use the dark theme from the screenshot (black/dark grey backgrounds, blue/purple accents).\n- Create a main 'SimulationController' to manage the step state.\n- Use Tailwind CSS for all styling.\n- Mock all data (no real backend).\n- Make it interactive (buttons to advance to the next scene).\n"
+    },
+    {
+      "id": "comp_1765037853959_t2td2a",
+      "name": "Generated_1765037853943",
+      "filename": "Generated_1765037853943.tsx",
+      "createdAt": "2025-12-06T16:17:33.963Z",
+      "prompt": "OCC Context OCC manages projects that contain one or more systems. Work is performed within a project and against its systems. OCC itself has no direct SAP access. SAP admins use a SAP plugin to export tables/data to an export handling app, which reports transfer status back to OCC. A mediator app provisions the Azure target machine, installs and configures JiVS IMP on a customer-managed machine, and prepares the export handling app for incoming transfers. JiVS IMP (web app on the customer machine) can run analyses and expose results that OCC can surface.\n\n\nYour task:\n\"\"\"\nSimuliere innerhalb eines ausgewählten OCC-Projekts den vollständigen synthetischen Lifecycle in vier klar getrennten Szenen. Alle Daten, Stati, Benachrichtigungen und Zeitverläufe sind vollständig künstlich erzeugt. Es existieren keine echten Integrationen. Die Rollen von Export Handling App, Mediator, JiVS IMP und OCC müssen erkennbar bleiben.\n\n🔹 Szene 1 — Systemzuordnung\n\nStelle die Zuordnung eines oder mehrerer SAP-Systeme zum aktuell ausgewählten OCC-Projekt dar.\n\nDie Systeme erscheinen als neu verknüpft und bereit für weitere Schritte.\n\nZeige synthetische Statusmeldungen oder Bestätigungen (z. B. „System erfolgreich hinzugefügt“).\n\n🔹 Szene 2 — Installation & Umgebungsaufbau\n\nSimuliere den Start des Installationsprozesses für die Zielumgebung.\n\nStelle die Arbeit der Mediator App dar (z. B. Azure-Provisionierung, Installation/Konfiguration von JiVS IMP).\n\nZeige einen simulierten Fortschritt (z. B. 0–100 %) über künstliche Zeitverläufe.\n\nAm Ende: Status „Environment Ready“.\n\n🔹 Szene 3 — Datenübertragung\n\nPräsentiere eine Ansicht der Export Handling App-Transfers.\n\nTransfer-Items starten als Pending und wechseln sequentiell oder gruppenweise zu Success.\n\nZeige synthetische Logs, Meldungen oder Fortschrittsdetails.\n\n🔹 Szene 4 — Analyse & Ergebnisse\n\nSimuliere, dass JiVS IMP Analysen ausgeführt hat und OCC nun die Resultate darstellt.\n\nZeige mindestens einen Trendverlauf über mehrere Zeitpunkte (z. B. Größe, Anzahl Objekte, Komprimierungsgrad).\n\nBaue eine Run-History früherer Analysen ein (mind. 2 Einträge).\n\nErgebnisse sind rein synthetisch, aber konsistent und wiederholbar.\n\"\"\""
     }
   ],
-  "lastUpdated": "2025-12-06T13:52:38.874Z",
-  "activeComponent": "comp_1765029158872_mlqpf0"
+  "lastUpdated": "2025-12-06T16:17:33.963Z",
+  "activeComponent": "comp_1765037853959_t2td2a"
 }

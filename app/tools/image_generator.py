@@ -3,8 +3,9 @@
 import base64
 import os
 import uuid
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from langchain_core.tools import tool
 from google import genai
@@ -70,101 +71,8 @@ def generate_design_image(
     Note: Images are saved to disk and should be loaded separately via HTTP
     to avoid massive token usage. Do NOT return base64 in tool responses.
     """
-    # Build the full prompt with design expertise
-    system_prompt = """You are an expert UI/UX designer creating high-fidelity design mockups.
-Generate clean, modern, professional designs with:
-- Clear visual hierarchy
-- Consistent spacing and alignment
-- Modern typography
-- Appropriate color contrast
-- Professional polish suitable for production use"""
-
-    # Add style context if provided
-    full_prompt = f"{system_prompt}\n\n"
-    
-    if style_context:
-        full_prompt += f"STYLE GUIDE TO FOLLOW:\n{style_context}\n\n"
-    
-    # Add design type specific instructions
-    design_instructions = {
-        "ui_mockup": "Create a pixel-perfect mobile or web app UI screen with realistic content, proper spacing, and interactive elements clearly visible.",
-        "marketing_banner": "Design an eye-catching marketing banner with bold typography, compelling visuals, and a clear call-to-action.",
-        "landing_page": "Create a modern landing page section with hero imagery, headline, subtext, and CTA button.",
-        "icon_set": "Design a cohesive set of icons with consistent style, stroke width, and visual language.",
-        "user_flow": "Create a multi-screen user flow showing connected app screens with navigation arrows.",
-        "dashboard": "Design a data-rich dashboard with charts, metrics cards, and organized data visualization.",
-    }
-    
-    full_prompt += f"DESIGN TYPE: {design_type}\n"
-    full_prompt += f"INSTRUCTIONS: {design_instructions.get(design_type, design_instructions['ui_mockup'])}\n\n"
-    full_prompt += f"USER REQUEST:\n{prompt}"
-
-    try:
-        # Try Gemini 3 Pro Image first (native image generation with text understanding)
-        response = client.models.generate_content(
-            model="gemini-3-pro-image-preview",
-            contents=full_prompt,
-            config=types.GenerateContentConfig(
-                response_modalities=["IMAGE", "TEXT"],
-            ),
-        )
-        
-        # Extract image from response
-        image_data = None
-        response_text = ""
-        
-        for part in response.candidates[0].content.parts:
-            if hasattr(part, "inline_data") and part.inline_data:
-                image_data = part.inline_data.data
-            elif hasattr(part, "text") and part.text:
-                response_text = part.text
-        
-        if not image_data:
-            # Fallback to Imagen 4 for pure image generation
-            return _generate_with_imagen(full_prompt, aspect_ratio, design_type)
-        
-        # Generate unique ID and save image
-        image_id = f"design_{uuid.uuid4().hex[:8]}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        filename = f"{image_id}.png"
-        filepath = _save_image(image_data, filename)
-        
-        # Store in memory (keep base64 only for internal retrieval via get_generated_image)
-        image_base64 = base64.b64encode(image_data).decode("utf-8")
-        _generated_images[image_id] = {
-            "image_base64": image_base64,
-            "filepath": filepath,
-            "filename": filename,
-            "prompt": prompt,
-            "design_type": design_type,
-            "created_at": datetime.now().isoformat(),
-        }
-        
-        # NOTE: Do NOT return image_base64 here - it causes 200k+ tokens!
-        # Frontend should load the image via /outputs/{filename} endpoint
-        return {
-            "success": True,
-            "image_id": image_id,
-            "filename": filename,
-            "filepath": filepath,
-            "ai_notes": response_text,
-            "model_used": "gemini-3-pro-image-preview",
-            "metadata": {
-                "prompt": prompt,
-                "design_type": design_type,
-                "aspect_ratio": aspect_ratio,
-                "style_context_used": bool(style_context),
-            },
-        }
-        
-    except Exception as e:
-        # Try Imagen 4 as fallback
-        try:
-            return _generate_with_imagen(full_prompt, aspect_ratio, design_type)
-        except Exception as e2:
-            return {
-                "error": f"Image generation failed: {str(e)}. Imagen fallback also failed: {str(e2)}",
-                "prompt": prompt,
-            }
+    # Use the internal helper function to avoid code duplication
+    return _generate_single_image_internal(prompt, style_context, design_type, aspect_ratio)
 
 
 def _generate_with_imagen(prompt: str, aspect_ratio: str, design_type: str) -> dict:
@@ -265,4 +173,207 @@ def list_generated_images() -> dict:
             }
             for img_id, data in _generated_images.items()
         ],
+    }
+
+
+def _generate_single_image_internal(
+    prompt: str,
+    style_context: Optional[str] = None,
+    design_type: str = "ui_mockup",
+    aspect_ratio: str = "16:9",
+) -> dict:
+    """
+    Internal helper function to generate a single image.
+    This is used by generate_multiple_design_images for parallel execution.
+    """
+    # Build the full prompt with design expertise
+    system_prompt = """You are an expert UI/UX designer creating high-fidelity design mockups.
+Generate clean, modern, professional designs with:
+- Clear visual hierarchy
+- Consistent spacing and alignment
+- Modern typography
+- Appropriate color contrast
+- Professional polish suitable for production use"""
+
+    # Add style context if provided
+    full_prompt = f"{system_prompt}\n\n"
+    
+    if style_context:
+        full_prompt += f"STYLE GUIDE TO FOLLOW:\n{style_context}\n\n"
+    
+    # Add design type specific instructions
+    design_instructions = {
+        "ui_mockup": "Create a pixel-perfect mobile or web app UI screen with realistic content, proper spacing, and interactive elements clearly visible.",
+        "marketing_banner": "Design an eye-catching marketing banner with bold typography, compelling visuals, and a clear call-to-action.",
+        "landing_page": "Create a modern landing page section with hero imagery, headline, subtext, and CTA button.",
+        "icon_set": "Design a cohesive set of icons with consistent style, stroke width, and visual language.",
+        "user_flow": "Create a multi-screen user flow showing connected app screens with navigation arrows.",
+        "dashboard": "Design a data-rich dashboard with charts, metrics cards, and organized data visualization.",
+    }
+    
+    full_prompt += f"DESIGN TYPE: {design_type}\n"
+    full_prompt += f"INSTRUCTIONS: {design_instructions.get(design_type, design_instructions['ui_mockup'])}\n\n"
+    full_prompt += f"USER REQUEST:\n{prompt}"
+
+    try:
+        # Try Gemini 3 Pro Image first (native image generation with text understanding)
+        response = client.models.generate_content(
+            model="gemini-3-pro-image-preview",
+            contents=full_prompt,
+            config=types.GenerateContentConfig(
+                response_modalities=["IMAGE", "TEXT"],
+            ),
+        )
+        
+        # Extract image from response
+        image_data = None
+        response_text = ""
+        
+        for part in response.candidates[0].content.parts:
+            if hasattr(part, "inline_data") and part.inline_data:
+                image_data = part.inline_data.data
+            elif hasattr(part, "text") and part.text:
+                response_text = part.text
+        
+        if not image_data:
+            # Fallback to Imagen 4 for pure image generation
+            return _generate_with_imagen(full_prompt, aspect_ratio, design_type)
+        
+        # Generate unique ID and save image
+        image_id = f"design_{uuid.uuid4().hex[:8]}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        filename = f"{image_id}.png"
+        filepath = _save_image(image_data, filename)
+        
+        # Store in memory (keep base64 only for internal retrieval via get_generated_image)
+        image_base64 = base64.b64encode(image_data).decode("utf-8")
+        _generated_images[image_id] = {
+            "image_base64": image_base64,
+            "filepath": filepath,
+            "filename": filename,
+            "prompt": prompt,
+            "design_type": design_type,
+            "created_at": datetime.now().isoformat(),
+        }
+        
+        return {
+            "success": True,
+            "image_id": image_id,
+            "filename": filename,
+            "filepath": filepath,
+            "ai_notes": response_text,
+            "model_used": "gemini-3-pro-image-preview",
+            "metadata": {
+                "prompt": prompt,
+                "design_type": design_type,
+                "aspect_ratio": aspect_ratio,
+                "style_context_used": bool(style_context),
+            },
+        }
+        
+    except Exception as e:
+        # Try Imagen 4 as fallback
+        try:
+            return _generate_with_imagen(full_prompt, aspect_ratio, design_type)
+        except Exception as e2:
+            return {
+                "error": f"Image generation failed: {str(e)}. Imagen fallback also failed: {str(e2)}",
+                "prompt": prompt,
+            }
+
+
+@tool
+def generate_multiple_design_images(
+    prompts: List[str],
+    style_context: Optional[str] = None,
+    design_type: str = "ui_mockup",
+    aspect_ratio: str = "16:9",
+) -> dict:
+    """
+    Generate multiple design images in parallel using async execution.
+    
+    This tool creates multiple UI mockups, marketing banners, app screens, or other
+    design assets simultaneously, significantly faster than generating them sequentially.
+    
+    Args:
+        prompts: List of detailed descriptions for each design to generate. Each prompt
+                should be specific about layout, colors, elements, and purpose.
+                Example: ["A login form with username and password fields", "A data table with user information"]
+        style_context: Optional style information extracted from existing designs
+                      (colors, typography, layout patterns). Applied to all images.
+        design_type: Type of design to generate for all images. Options:
+                    - "ui_mockup": Mobile or web app screen
+                    - "marketing_banner": Promotional banner or ad
+                    - "landing_page": Website landing page section
+                    - "icon_set": App icons or UI icons
+                    - "user_flow": Multi-screen user flow diagram
+                    - "dashboard": Data dashboard or admin panel
+        aspect_ratio: Image aspect ratio for all images. Options: "1:1", "16:9", "9:16", "4:3", "3:4"
+    
+    Returns:
+        dict with:
+        - success: True if all images generated successfully
+        - count: Number of images generated
+        - images: List of image results, each containing:
+            - image_id: Unique identifier
+            - filename: Filename of the saved image
+            - filepath: Full path where the image was saved
+            - metadata: Generation metadata
+        - errors: List of any errors that occurred (if any)
+        
+    Example:
+        generate_multiple_design_images(
+            prompts=["A login form", "A user table"],
+            design_type="ui_mockup"
+        )
+    """
+    if not prompts:
+        return {
+            "success": False,
+            "error": "No prompts provided",
+        }
+    
+    results = []
+    errors = []
+    
+    # Use ThreadPoolExecutor to run image generation in parallel
+    # This is I/O-bound work (API calls), so threads are perfect
+    with ThreadPoolExecutor(max_workers=min(len(prompts), 5)) as executor:
+        # Submit all tasks
+        future_to_prompt = {
+            executor.submit(
+                _generate_single_image_internal,
+                prompt,
+                style_context,
+                design_type,
+                aspect_ratio
+            ): (i, prompt)
+            for i, prompt in enumerate(prompts)
+        }
+        
+        # Collect results as they complete
+        for future in as_completed(future_to_prompt):
+            index, prompt = future_to_prompt[future]
+            try:
+                result = future.result()
+                result["index"] = index  # Preserve original order
+                results.append(result)
+            except Exception as e:
+                errors.append({
+                    "index": index,
+                    "prompt": prompt,
+                    "error": str(e),
+                })
+    
+    # Sort results by original index to maintain order
+    results.sort(key=lambda x: x.get("index", 0))
+    
+    # Remove index from final results
+    for result in results:
+        result.pop("index", None)
+    
+    return {
+        "success": len(errors) == 0,
+        "count": len(results),
+        "images": results,
+        "errors": errors if errors else None,
     }

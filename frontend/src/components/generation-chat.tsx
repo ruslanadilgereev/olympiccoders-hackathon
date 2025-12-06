@@ -40,7 +40,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useDesignStore, Message, GeneratedDesign, ToolActivity, SelectedElement, AgentPhase } from '@/lib/store';
 import { createThread, streamMessage } from '@/lib/langgraph-client';
 import { CodePreview } from '@/components/code-preview';
-import { AIGenerationExperience } from '@/components/ai-generation-experience';
 import { saveAndPreview, shouldAutoOpen } from '@/lib/auto-open';
 
 // Phase-specific styling and labels
@@ -349,6 +348,19 @@ const TOOL_CONFIG: Record<string, { icon: string; name: string; description: str
   },
 };
 
+// Pretty-print tool arg values (avoid [object Object])
+const formatArgValue = (value: unknown): string => {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  try {
+    const s = JSON.stringify(value);
+    return s;
+  } catch {
+    return String(value);
+  }
+};
+
 function ToolActivityDisplay({ tool }: { tool: ToolActivity }) {
   const config = TOOL_CONFIG[tool.name] || {
     icon: '🔧',
@@ -429,14 +441,14 @@ function ToolActivityDisplay({ tool }: { tool: ToolActivity }) {
             <div className="mt-1.5 flex flex-wrap gap-1">
               {Object.entries(tool.args).slice(0, 3).map(([key, value]) => {
                 // Skip large values like code or base64
-                const strValue = String(value);
-                if (strValue.length > 50 || key === 'code' || key === 'image') return null;
+                const strValue = formatArgValue(value);
+                if (strValue.length > 120 || key === 'code' || key === 'image') return null;
                 return (
                   <span 
                     key={key}
                     className="text-[10px] px-1.5 py-0.5 rounded bg-muted/50 text-muted-foreground"
                   >
-                    {key}: {strValue.length > 30 ? `${strValue.slice(0, 30)}...` : strValue}
+                    {key}: {strValue.length > 60 ? `${strValue.slice(0, 60)}...` : strValue}
                   </span>
                 );
               })}
@@ -565,7 +577,6 @@ export function GenerationChat() {
   const [copied, setCopied] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(true);
   const [showUploadedImages, setShowUploadedImages] = useState(false);
-  const [demoMode, setDemoMode] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -656,15 +667,30 @@ export function GenerationChat() {
 
     try {
       // Get image base64 from uploaded assets for context
-      // Limit to 1 image and max 500KB to avoid token limits
-      const MAX_IMAGE_SIZE = 500 * 1024; // 500KB in base64 chars
-      const imageContexts = uploadedAssets
+      // Use all images but limit total size to avoid token limits
+      const MAX_TOTAL_SIZE = 5 * 1024 * 1024; // 5MB total in base64 chars
+      const MAX_IMAGE_SIZE = 1 * 1024 * 1024; // 1MB per image max
+      
+      // Filter and sort images by size (smallest first to include as many as possible)
+      const validImages = uploadedAssets
         .filter((a) => a.type === 'image' && a.base64.length < MAX_IMAGE_SIZE)
-        .slice(0, 1) // Only 1 image to stay under token limit
-        .map((a) => a.base64);
+        .sort((a, b) => a.base64.length - b.base64.length);
+      
+      // Add images until we hit the total size limit
+      const imageContexts: string[] = [];
+      let totalSize = 0;
+      for (const asset of validImages) {
+        if (totalSize + asset.base64.length <= MAX_TOTAL_SIZE) {
+          imageContexts.push(asset.base64);
+          totalSize += asset.base64.length;
+        } else {
+          break; // Stop if adding this image would exceed the limit
+        }
+      }
       
       if (imageContexts.length > 0) {
-        console.log(`Sending ${imageContexts.length} image(s), size: ~${Math.round(imageContexts[0].length / 1024)}KB`);
+        const totalKB = Math.round(totalSize / 1024);
+        console.log(`Sending ${imageContexts.length} image(s) for style context, total size: ~${totalKB}KB`);
       }
 
       let currentThreadId = threadId;
@@ -879,11 +905,14 @@ export function GenerationChat() {
     }
   };
 
+  const lastMessage = messages[messages.length - 1];
+  const lastMessageHasActiveTools = Boolean(lastMessage?.activeTools?.length);
+
   return (
-    <div className="flex h-screen">
+    <div className="flex h-[calc(100vh-96px)] max-h-[calc(100vh-96px)] overflow-hidden min-h-0">
       {/* Chat Panel (left, sticky ~20%) */}
       <motion.div 
-        className="flex flex-col h-screen border-r border-border basis-[20%] min-w-[300px] max-w-[360px] sticky top-0 bg-background"
+        className="flex flex-col h-full min-h-0 max-h-full border-r border-border basis-[20%] min-w-[300px] max-w-[360px] sticky top-0 bg-background overflow-hidden"
         layout
       >
         {/* Header with Clear Button */}
@@ -945,7 +974,7 @@ export function GenerationChat() {
         </div>
 
         {/* Messages Area */}
-        <ScrollArea className="flex-1 p-4">
+        <ScrollArea className="flex-1 p-4 pr-2 min-h-0">
           <div className="space-y-6 max-w-4xl mx-auto">
             {/* Welcome Message */}
             {messages.length === 0 && (
@@ -1245,7 +1274,7 @@ export function GenerationChat() {
           <div className="max-w-4xl mx-auto">
             {/* Agent Status Bar */}
             <AnimatePresence>
-              {(isGenerating || agentStatus.phase !== 'idle') && (
+              {(isGenerating || agentStatus.phase !== 'idle') && !lastMessageHasActiveTools && (
                 <AgentStatusBar 
                   isGenerating={isGenerating}
                   isThinking={messages[messages.length - 1]?.isThinking || false}
@@ -1350,31 +1379,8 @@ export function GenerationChat() {
             animate={{ width: '80%', opacity: 1 }}
             exit={{ width: 0, opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="h-screen flex-1 p-4 relative"
+            className="h-full min-h-0 flex-1 p-4 relative overflow-auto"
           >
-            {/* Premium AI Generation Experience - Shows when agent is working OR demo mode */}
-            <AnimatePresence>
-              {(demoMode || ((isGenerating || isCodeGenerating) && uploadedAssets.length > 0)) && (
-                <AIGenerationExperience
-                  imageUrl={
-                    uploadedAssets.length > 0 
-                      ? (uploadedAssets[0].preview || `data:image/jpeg;base64,${uploadedAssets[0].base64}`)
-                      : 'https://images.unsplash.com/photo-1551650975-87deedd944c3?w=800&q=80'
-                  }
-                  imageName={uploadedAssets.length > 0 ? uploadedAssets[0].name : 'Demo Dashboard.png'}
-                  isGenerating={demoMode || isGenerating || isCodeGenerating}
-                  onComplete={() => {
-                    console.log('[AI Experience] Generation complete, transitioning to preview');
-                    if (demoMode) setDemoMode(false);
-                  }}
-                />
-              )}
-            </AnimatePresence>
-            
-            {/* Demo Button removed - was cluttering the UI */}
-
-            {/* Uploaded Images Panel removed - was cluttering the UI */}
-            
             {/* Code Preview with entrance animation after generation */}
             <motion.div
               className="h-full"

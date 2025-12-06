@@ -11,6 +11,7 @@ from app.config import GOOGLE_API_KEY
 from app.middleware.image_extractor import extract_images_from_state
 from app.tools.image_generator import (
     generate_design_image,
+    generate_multiple_design_images,
     get_generated_image,
     list_generated_images,
 )
@@ -76,17 +77,41 @@ View the live preview: http://localhost:3000/preview?id=xxx"
 
 If the user sends text without an image:
 - If they want a NEW design image created → use `generate_design_image`
+- If they want MULTIPLE design images created → use `generate_multiple_design_images` (runs in parallel, much faster!)
 - If they want to modify existing code → use `modify_code`
 - If they want brand info from a URL → use `extract_brand_identity`
 - If they have questions → answer them
+
+## CRITICAL: MODIFYING EXISTING CODE
+
+**When the user wants to modify code (e.g., "make button red", "change color", "update style"):**
+
+**You have access to ALL previous messages in the conversation, including tool outputs!**
+
+1. **Look at the conversation history** - find the most recent tool message from `image_to_code` or `modify_code`
+2. **Extract the `code` field** from that tool output - it contains the full React code
+3. **Call `modify_code`** with:
+   - `current_code`: The code from the previous tool output
+   - `modification_request`: What the user wants to change
+
+**Example workflow:**
+- User: "Convert this image to code" → You call `image_to_code()` → Tool returns `{code: "...", code_id: "..."}`
+- User: "Make button red" → You see the previous tool output has `code` field → You call `modify_code(current_code="...", modification_request="Make button red")`
+
+**IMPORTANT**: 
+- The `modify_code` tool REQUIRES the `current_code` parameter
+- You MUST extract it from previous tool message outputs in the conversation
+- The code is in the `code` field of tool outputs from `image_to_code` or `modify_code`
+- You can see all previous messages - use them!
 
 ## Your Tools
 
 1. `image_to_code` - Converts uploaded screenshots to React + Tailwind code (auto-saves to sandbox)
 2. `modify_code` - Modifies existing code based on user requests (auto-saves to sandbox)
-3. `generate_design_image` - Creates NEW design images from descriptions
-4. `extract_brand_identity` - Gets brand info from URLs
-5. `analyze_design_style` - Extracts style info from designs
+3. `generate_design_image` - Creates a single NEW design image from a description
+4. `generate_multiple_design_images` - Creates MULTIPLE design images in parallel (use when user asks for 2+ images)
+5. `extract_brand_identity` - Gets brand info from URLs
+6. `analyze_design_style` - Extracts style info from designs
 
 ## Response Style
 
@@ -131,6 +156,7 @@ def create_agent_graph():
         get_generated_code,
         # Image generation tools
         generate_design_image,
+        generate_multiple_design_images,
         get_generated_image,
         list_generated_images,
         # Style analysis tools
