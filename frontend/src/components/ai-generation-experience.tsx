@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, Zap, Code2, Palette, Layout, CheckCircle2 } from 'lucide-react';
+import { useDesignStore, AgentPhase } from '@/lib/store';
 
 // Generation phases with timing
 type GenerationPhase = 'scanning' | 'understanding' | 'creating' | 'polishing' | 'complete';
@@ -71,6 +72,26 @@ interface AIGenerationExperienceProps {
   imageName?: string;
   isGenerating: boolean;
   onComplete?: () => void;
+}
+
+// Map agent phases to UI phases
+function mapAgentPhaseToUIPhase(agentPhase: AgentPhase): GenerationPhase {
+  switch (agentPhase) {
+    case 'idle':
+      return 'scanning';
+    case 'thinking':
+      return 'scanning';
+    case 'tool_running':
+      return 'understanding';
+    case 'generating_code':
+      return 'creating';
+    case 'saving':
+      return 'polishing';
+    case 'complete':
+      return 'complete';
+    default:
+      return 'scanning';
+  }
 }
 
 // Circular Progress Ring Component
@@ -318,11 +339,46 @@ export function AIGenerationExperience({
   isGenerating,
   onComplete,
 }: AIGenerationExperienceProps) {
+  // Get agent status from store for real-time sync
+  const agentStatus = useDesignStore((state) => state.agentStatus);
+  
   const [phase, setPhase] = useState<GenerationPhase>('scanning');
   const [elapsedTime, setElapsedTime] = useState(0);
-  const [startTime] = useState(() => Date.now());
+  const startTimeRef = useRef<number | null>(null);
+  
+  // Track highest progress to prevent going backwards
+  const highestProgressRef = useRef(0);
 
-  // Calculate progress based on phase and elapsed time
+  // Initialize/reset when generation begins or ends
+  useEffect(() => {
+    if (isGenerating && startTimeRef.current === null) {
+      // New generation starting - reset everything
+      startTimeRef.current = Date.now();
+      highestProgressRef.current = 0;
+      setPhase('scanning');
+      setElapsedTime(0);
+    } else if (!isGenerating) {
+      startTimeRef.current = null;
+    }
+  }, [isGenerating]);
+
+  // Sync phase with agent status from store
+  useEffect(() => {
+    if (!isGenerating) return;
+    
+    const uiPhase = mapAgentPhaseToUIPhase(agentStatus.phase);
+    
+    // Only move forward in phases, never backward
+    const phaseOrder: GenerationPhase[] = ['scanning', 'understanding', 'creating', 'polishing', 'complete'];
+    const currentIndex = phaseOrder.indexOf(phase);
+    const newIndex = phaseOrder.indexOf(uiPhase);
+    
+    if (newIndex > currentIndex) {
+      setPhase(uiPhase);
+    }
+  }, [agentStatus.phase, isGenerating, phase]);
+
+  // Calculate progress based on phase - only moves forward
   const progress = useMemo(() => {
     const phaseOrder: GenerationPhase[] = ['scanning', 'understanding', 'creating', 'polishing', 'complete'];
     const currentIndex = phaseOrder.indexOf(phase);
@@ -331,38 +387,36 @@ export function AIGenerationExperience({
     if (phase === 'complete') return 100;
     
     const phaseConfig = PHASE_CONFIGS[phase];
-    const phaseProgress = Math.min((elapsedTime % phaseConfig.duration) / phaseConfig.duration, 1) * 25;
+    // Use elapsed time within current phase for smooth progress
+    const phaseProgress = Math.min((elapsedTime % phaseConfig.duration) / phaseConfig.duration, 1) * 24;
     
-    return Math.min(baseProgress + phaseProgress, 99);
+    const calculatedProgress = Math.min(baseProgress + phaseProgress, 99);
+    
+    // Never go backwards
+    if (calculatedProgress > highestProgressRef.current) {
+      highestProgressRef.current = calculatedProgress;
+    }
+    
+    return highestProgressRef.current;
   }, [phase, elapsedTime]);
 
-  // Phase transition based on time
+  // Update elapsed time
   useEffect(() => {
-    if (!isGenerating) return;
+    if (!isGenerating || !startTimeRef.current) return;
 
     const interval = setInterval(() => {
-      const elapsed = Math.floor((Date.now() - startTime) / 1000);
+      const elapsed = Math.floor((Date.now() - startTimeRef.current!) / 1000);
       setElapsedTime(elapsed);
-
-      // Auto-transition phases based on time
-      if (elapsed < 15) {
-        setPhase('scanning');
-      } else if (elapsed < 40) {
-        setPhase('understanding');
-      } else if (elapsed < 70) {
-        setPhase('creating');
-      } else {
-        setPhase('polishing');
-      }
     }, 100);
 
     return () => clearInterval(interval);
-  }, [isGenerating, startTime]);
+  }, [isGenerating]);
 
   // Handle completion
   useEffect(() => {
     if (!isGenerating && phase !== 'complete') {
       setPhase('complete');
+      highestProgressRef.current = 100;
       onComplete?.();
     }
   }, [isGenerating, phase, onComplete]);
@@ -523,12 +577,12 @@ export function AIGenerationExperience({
               <span className="text-xl font-semibold">{currentPhaseConfig.name}</span>
             </motion.div>
             <motion.p
-              key={`${phase}-desc`}
+              key={`${phase}-desc-${agentStatus.message || ''}`}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="text-white/60 text-sm"
+              className="text-white/60 text-sm max-w-xs"
             >
-              {currentPhaseConfig.description}
+              {agentStatus.message || currentPhaseConfig.description}
             </motion.p>
           </div>
 

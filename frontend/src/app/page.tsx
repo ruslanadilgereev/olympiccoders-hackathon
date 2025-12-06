@@ -20,6 +20,7 @@ import { UploadZone } from '@/components/upload-zone';
 import { GenerationChat } from '@/components/generation-chat';
 import { DesignGallery } from '@/components/design-gallery';
 import { useDesignStore } from '@/lib/store';
+import { clearStoredThread } from '@/lib/langgraph-client';
 
 // Animated background particles
 function ParticleBackground() {
@@ -81,7 +82,7 @@ const FEATURES = [
 
 export default function Home() {
   const [showLanding, setShowLanding] = useState(true);
-  const { activeTab, setActiveTab, uploadedAssets, generatedDesigns } = useDesignStore();
+  const { activeTab, setActiveTab, uploadedAssets, generatedDesigns, setNeedsNewSession, setThreadId } = useDesignStore();
 
   // Skip landing if there are assets
   useEffect(() => {
@@ -319,7 +320,13 @@ export default function Home() {
                         Our AI will analyze them to understand your visual style.
                       </p>
                     </div>
-                    <UploadZone onAnalyzeComplete={() => setActiveTab('studio')} />
+                    <UploadZone onAnalyzeComplete={() => {
+                      // Signal that we need a new session when entering studio from upload
+                      setNeedsNewSession(true);
+                      setThreadId(null); // Clear current thread to force new one
+                      clearStoredThread(); // Clear localStorage
+                      setActiveTab('studio');
+                    }} />
                   </motion.div>
                 </TabsContent>
 

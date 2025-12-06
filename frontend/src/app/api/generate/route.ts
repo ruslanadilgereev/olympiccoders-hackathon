@@ -11,6 +11,7 @@ interface ComponentEntry {
   filename: string;
   createdAt: string;
   prompt?: string;
+  threadId?: string;  // Links component to chat session
 }
 
 interface Registry {
@@ -50,9 +51,18 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const withCode = searchParams.get('withCode') === 'true';
     const componentId = searchParams.get('id');
-    
-    const registry = await readRegistry();
-    
+    const filterThreadId = searchParams.get('threadId');  // Filter by chat session
+
+    let registry = await readRegistry();
+
+    // Filter components by threadId if specified
+    if (filterThreadId) {
+      registry = {
+        ...registry,
+        components: registry.components.filter(c => c.threadId === filterThreadId)
+      };
+    }
+
     // If requesting a specific component with code
     if (componentId && withCode) {
       const component = registry.components.find(c => c.id === componentId);
@@ -67,7 +77,7 @@ export async function GET(request: NextRequest) {
       }
       return NextResponse.json({ error: 'Component not found' }, { status: 404 });
     }
-    
+
     // If requesting all components with code
     if (withCode) {
       const componentsWithCode = await Promise.all(
@@ -83,7 +93,7 @@ export async function GET(request: NextRequest) {
       );
       return NextResponse.json({ ...registry, components: componentsWithCode });
     }
-    
+
     return NextResponse.json(registry);
   } catch (error) {
     return NextResponse.json(
@@ -99,7 +109,7 @@ export async function POST(request: NextRequest) {
     await ensureDirectories();
 
     const body = await request.json();
-    const { code, name, prompt } = body;
+    const { code, name, prompt, threadId } = body;
 
     if (!code) {
       return NextResponse.json(
@@ -112,7 +122,7 @@ export async function POST(request: NextRequest) {
     const id = `comp_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
     const componentName = name || `Generated_${id}`;
     const filename = `${componentName.replace(/[^a-zA-Z0-9]/g, '_')}.tsx`;
-    
+
     // Ensure the code has a default export
     let finalCode = code;
     if (!code.includes('export default')) {
@@ -138,12 +148,13 @@ export async function POST(request: NextRequest) {
       filename,
       createdAt: new Date().toISOString(),
       prompt,
+      threadId,  // Link to chat session
     };
-    
+
     registry.components.push(entry);
     registry.lastUpdated = new Date().toISOString();
     registry.activeComponent = id;
-    
+
     await writeRegistry(registry);
 
     return NextResponse.json({
@@ -195,12 +206,12 @@ export async function DELETE(request: NextRequest) {
     // Update registry
     registry.components = registry.components.filter(c => c.id !== id);
     if (registry.activeComponent === id) {
-      registry.activeComponent = registry.components.length > 0 
-        ? registry.components[registry.components.length - 1].id 
+      registry.activeComponent = registry.components.length > 0
+        ? registry.components[registry.components.length - 1].id
         : null;
     }
     registry.lastUpdated = new Date().toISOString();
-    
+
     await writeRegistry(registry);
 
     return NextResponse.json({ success: true });

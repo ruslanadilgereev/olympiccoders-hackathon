@@ -580,7 +580,7 @@ body {
         )}
       </AnimatePresence>
 
-      {/* Content */}
+      {/* Content - SandpackProvider wraps everything for context access */}
       <div className="flex-1 overflow-hidden relative">
         <SandpackProvider
           key={sandpackKey}

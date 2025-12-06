@@ -237,8 +237,250 @@
       "filename": "Modified_7.tsx",
       "createdAt": "2025-12-06T13:52:38.874Z",
       "prompt": "Swap the positions of the two main columns. Move the 'Add New Systems' section to the left (make it the first child in the grid), and move the 'In Scope'/'Available Systems' lists to the right (make it the second child in the grid). Keep their respective column spans (5 for Add New Systems, 7 for lists)."
+    },
+    {
+      "id": "comp_1765031927644_gg3h9t",
+      "name": "ProjectScopeDashboard",
+      "filename": "ProjectScopeDashboard.tsx",
+      "createdAt": "2025-12-06T14:38:47.646Z",
+      "prompt": "Convert the UI to React/Tailwind. Important: Make all borders green as requested ('alle rahmen grün'). Use a dark theme as shown in the screenshot.",
+      "threadId": "9ed5db1c-fcbc-43ad-a1bc-9b070023f344"
+    },
+    {
+      "id": "comp_1765031934411_ndmmbu",
+      "name": "Generated_1765031934399",
+      "filename": "Generated_1765031934399.tsx",
+      "createdAt": "2025-12-06T14:38:54.413Z",
+      "prompt": "akke rahmen grün"
+    },
+    {
+      "id": "comp_1765031981684_6bk20w",
+      "name": "Generated_1765031981673",
+      "filename": "Generated_1765031981673.tsx",
+      "createdAt": "2025-12-06T14:39:41.686Z",
+      "prompt": "tausch mal die rechte seite add new syestsms mit der linken seite wo die in scope und avaialble systems sind"
+    },
+    {
+      "id": "comp_1765032083914_5l288e",
+      "name": "Modified_1",
+      "filename": "Modified_1.tsx",
+      "createdAt": "2025-12-06T14:41:23.916Z",
+      "prompt": "Swap the left and right columns. The 'Add New Systems' form (currently on the right) should move to the left side, and the 'In Scope'/'Available Systems' lists (currently on the left) should move to the right side. Keep their respective widths (span-4 for the form, span-8 for the lists).",
+      "threadId": "9ed5db1c-fcbc-43ad-a1bc-9b070023f344"
+    },
+    {
+      "id": "comp_1765032343186_41ytkz",
+      "name": "Generated_1765032343174",
+      "filename": "Generated_1765032343174.tsx",
+      "createdAt": "2025-12-06T14:45:43.188Z",
+      "prompt": "alle rahmen grün"
+    },
+    {
+      "id": "comp_1765032343300_1vvduo",
+      "name": "Generated_1765032343292",
+      "filename": "Generated_1765032343292.tsx",
+      "createdAt": "2025-12-06T14:45:43.301Z",
+      "prompt": "alle rahmen grün"
+    },
+    {
+      "id": "comp_1765032459146_ebqgr7",
+      "name": "ProjectScopeGreenBorders",
+      "filename": "ProjectScopeGreenBorders.tsx",
+      "createdAt": "2025-12-06T14:47:39.148Z",
+      "prompt": "Use a dark theme. CRITICAL: Make ALL borders green (border-green-500) for every element that has a border: cards, inputs, buttons, navigation bar, tabs, and the main containers. The user explicitly requested 'alle rahmen grün' (all frames green).",
+      "threadId": "9ed5db1c-fcbc-43ad-a1bc-9b070023f344"
+    },
+    {
+      "id": "comp_1765032464812_wcwd9z",
+      "name": "Generated_1765032464803",
+      "filename": "Generated_1765032464803.tsx",
+      "createdAt": "2025-12-06T14:47:44.814Z",
+      "prompt": "alle rahmen grün"
+    },
+    {
+      "id": "comp_1765032464855_ixusow",
+      "name": "Generated_1765032464849",
+      "filename": "Generated_1765032464849.tsx",
+      "createdAt": "2025-12-06T14:47:44.857Z",
+      "prompt": "alle rahmen grün"
+    },
+    {
+      "id": "comp_1765032673492_9xdj0l",
+      "name": "Generated_1765032673476",
+      "filename": "Generated_1765032673476.tsx",
+      "createdAt": "2025-12-06T14:51:13.494Z",
+      "prompt": "alle rahmen grün"
+    },
+    {
+      "id": "comp_1765032673547_3fr19c",
+      "name": "Generated_1765032673539",
+      "filename": "Generated_1765032673539.tsx",
+      "createdAt": "2025-12-06T14:51:13.551Z",
+      "prompt": "alle rahmen grün"
+    },
+    {
+      "id": "comp_1765032795680_g0ekzg",
+      "name": "ProjectScopeGreen",
+      "filename": "ProjectScopeGreen.tsx",
+      "createdAt": "2025-12-06T14:53:15.682Z",
+      "prompt": "Make all borders green (border-green-500) for every element: cards, inputs, buttons, containers, navbars. Dark theme. Match the layout in the image (Form on right, Lists on left).",
+      "threadId": "9ed5db1c-fcbc-43ad-a1bc-9b070023f344"
+    },
+    {
+      "id": "comp_1765032800981_466omd",
+      "name": "Generated_1765032800975",
+      "filename": "Generated_1765032800975.tsx",
+      "createdAt": "2025-12-06T14:53:20.983Z",
+      "prompt": "alle rahmen grün"
+    },
+    {
+      "id": "comp_1765032801222_qf4k99",
+      "name": "Generated_1765032801214",
+      "filename": "Generated_1765032801214.tsx",
+      "createdAt": "2025-12-06T14:53:21.223Z",
+      "prompt": "alle rahmen grün"
+    },
+    {
+      "id": "comp_1765033430097_vbch62",
+      "name": "ProjectScopeUI",
+      "filename": "ProjectScopeUI.tsx",
+      "createdAt": "2025-12-06T15:03:50.099Z",
+      "prompt": "Make all borders/frames red as requested ('alle rahmen rot'). Ensure the dark theme is preserved but apply red borders to containers and cards.",
+      "threadId": "e99f01f5-7641-41ef-9b50-406bea15efc0"
+    },
+    {
+      "id": "comp_1765033435342_bxcp1a",
+      "name": "Generated_1765033435337",
+      "filename": "Generated_1765033435337.tsx",
+      "createdAt": "2025-12-06T15:03:55.344Z",
+      "prompt": "alle rahmen rot"
+    },
+    {
+      "id": "comp_1765033539019_ak3ok2",
+      "name": "Generated_1765033539007",
+      "filename": "Generated_1765033539007.tsx",
+      "createdAt": "2025-12-06T15:05:39.021Z",
+      "prompt": "mach alle rahmen grün"
+    },
+    {
+      "id": "comp_1765033654202_lkrr4s",
+      "name": "ProjectScopeUI",
+      "filename": "ProjectScopeUI.tsx",
+      "createdAt": "2025-12-06T15:07:34.203Z",
+      "prompt": "Make all borders/frames green (e.g., border-green-600) as requested ('mach alle rahmen grün'). Preserve the dark theme but ensure all container borders, input borders, and card borders are green.",
+      "threadId": "e99f01f5-7641-41ef-9b50-406bea15efc0"
+    },
+    {
+      "id": "comp_1765033659106_tpukfg",
+      "name": "Generated_1765033659099",
+      "filename": "Generated_1765033659099.tsx",
+      "createdAt": "2025-12-06T15:07:39.107Z",
+      "prompt": "mach alle rahmen grün"
+    },
+    {
+      "id": "comp_1765033659204_qwa7k5",
+      "name": "Generated_1765033659198",
+      "filename": "Generated_1765033659198.tsx",
+      "createdAt": "2025-12-06T15:07:39.206Z",
+      "prompt": "mach alle rahmen grün"
+    },
+    {
+      "id": "comp_1765034404123_bvocsh",
+      "name": "ProjectScopeUI",
+      "filename": "ProjectScopeUI.tsx",
+      "createdAt": "2025-12-06T15:20:04.125Z",
+      "prompt": "Make all borders red (alle rahmen rot) as requested.",
+      "threadId": "9d680b46-01c0-43b0-91dc-5c52e523e781"
+    },
+    {
+      "id": "comp_1765034411350_l4klg3",
+      "name": "Generated_1765034411343",
+      "filename": "Generated_1765034411343.tsx",
+      "createdAt": "2025-12-06T15:20:11.351Z",
+      "prompt": "alle rahmen rot"
+    },
+    {
+      "id": "comp_1765034808519_5vz5vy",
+      "name": "ProjectScopeDashboard",
+      "filename": "ProjectScopeDashboard.tsx",
+      "createdAt": "2025-12-06T15:26:48.521Z",
+      "prompt": "Make all borders red (alle rahmen rot) as requested.",
+      "threadId": "d27067d8-c2e9-4006-b177-37b0c52115dc"
+    },
+    {
+      "id": "comp_1765034815793_j7qpcr",
+      "name": "Generated_1765034815785",
+      "filename": "Generated_1765034815785.tsx",
+      "createdAt": "2025-12-06T15:26:55.795Z",
+      "prompt": "alle rahmen rot"
+    },
+    {
+      "id": "comp_1765034868535_k2f3m9",
+      "name": "Generated_1765034868529",
+      "filename": "Generated_1765034868529.tsx",
+      "createdAt": "2025-12-06T15:27:48.537Z",
+      "prompt": "ale rahmen grün"
+    },
+    {
+      "id": "comp_1765034983151_k5cw6m",
+      "name": "Modified_1",
+      "filename": "Modified_1.tsx",
+      "createdAt": "2025-12-06T15:29:43.153Z",
+      "prompt": "Make all borders green (alle rahmen grün). Replace all instances of 'border-red-500' with 'border-green-500'. Also update hover states if they use red.",
+      "threadId": "d27067d8-c2e9-4006-b177-37b0c52115dc"
+    },
+    {
+      "id": "comp_1765034986965_c3odpk",
+      "name": "Generated_1765034986950",
+      "filename": "Generated_1765034986950.tsx",
+      "createdAt": "2025-12-06T15:29:46.967Z",
+      "prompt": "ale rahmen grün"
+    },
+    {
+      "id": "comp_1765034987042_zcjnqr",
+      "name": "Generated_1765034987034",
+      "filename": "Generated_1765034987034.tsx",
+      "createdAt": "2025-12-06T15:29:47.045Z",
+      "prompt": "ale rahmen grün"
+    },
+    {
+      "id": "comp_1765035405801_vqrooe",
+      "name": "ProjectScopeDashboard",
+      "filename": "ProjectScopeDashboard.tsx",
+      "createdAt": "2025-12-06T15:36:45.803Z",
+      "prompt": "Make all borders red (alle rahmen rot) as requested.",
+      "threadId": "b85957da-960c-4c97-9a33-015fb9599ddd"
+    },
+    {
+      "id": "comp_1765035410109_7iyiwl",
+      "name": "Generated_1765035410103",
+      "filename": "Generated_1765035410103.tsx",
+      "createdAt": "2025-12-06T15:36:50.110Z",
+      "prompt": "alle rahmen rot"
+    },
+    {
+      "id": "comp_1765035455955_szavg0",
+      "name": "Generated_1765035455949",
+      "filename": "Generated_1765035455949.tsx",
+      "createdAt": "2025-12-06T15:37:35.958Z",
+      "prompt": "alle rahmen grün"
+    },
+    {
+      "id": "comp_1765035529647_0qtztl",
+      "name": "Modified_1",
+      "filename": "Modified_1.tsx",
+      "createdAt": "2025-12-06T15:38:49.649Z",
+      "prompt": "Change all red borders to green borders (replace border-red-600 with border-green-600).",
+      "threadId": "b85957da-960c-4c97-9a33-015fb9599ddd"
+    },
+    {
+      "id": "comp_1765035533301_eecima",
+      "name": "Generated_1765035533293",
+      "filename": "Generated_1765035533293.tsx",
+      "createdAt": "2025-12-06T15:38:53.303Z",
+      "prompt": "alle rahmen grün"
     }
   ],
-  "lastUpdated": "2025-12-06T13:52:38.874Z",
-  "activeComponent": "comp_1765029158872_mlqpf0"
+  "lastUpdated": "2025-12-06T15:38:53.303Z",
+  "activeComponent": "comp_1765035533301_eecima"
 }

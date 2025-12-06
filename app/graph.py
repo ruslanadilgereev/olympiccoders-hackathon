@@ -7,7 +7,7 @@ from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
 from typing import Annotated, TypedDict
 
-from app.config import GOOGLE_API_KEY
+from app.config import GOOGLE_API_KEY, SQLITE_DB_PATH
 from app.middleware.image_extractor import extract_images_from_state
 from app.tools.image_generator import (
     generate_design_image,
@@ -39,64 +39,52 @@ from app.tools.code_generator import (
 )
 
 
-# Global checkpointer for session persistence
-_checkpointer = MemorySaver()
+# Global checkpointer for session storage (in-memory)
+_checkpointer = None
+
+
+def setup_checkpointer():
+    """Initialize MemorySaver for session checkpointing."""
+    global _checkpointer
+    if _checkpointer is None:
+        print("[DB] Initializing MemorySaver for session checkpointing")
+        _checkpointer = MemorySaver()
+        print("[OK] MemorySaver initialized for sessions")
+    return _checkpointer
 
 # Gemini model to use
 GEMINI_MODEL = "gemini-3-pro-preview"
 
-# System prompt for the Design Automation Agent
-DESIGN_AGENT_SYSTEM_PROMPT = """You are DesignForge AI, an AI that converts UI screenshots to React code.
+# System prompt for the Design Automation Agent - OPTIMIZED FOR SPEED
+DESIGN_AGENT_SYSTEM_PROMPT = """You are DesignForge AI. Convert UI screenshots to React code.
 
-## RULE #1 - WHEN USER UPLOADS AN IMAGE
+## ROUTING - ACT IMMEDIATELY
 
-**When a user uploads an image and asks to convert it to code, call the `image_to_code` tool.**
+1. **Image uploaded** → Call `image_to_code` NOW. No questions.
+2. **Change request** (colors, borders, text, layout) → Call `modify_code` NOW.
+   - You do NOT need to pass current_code - it's automatic!
+   - Just pass the modification_request.
+3. **New design from text** → Call `generate_design_image`.
 
-The image has already been extracted and stored - you just need to call the tool.
-Do NOT ask questions. Do NOT explain what you're going to do. Just call the tool.
+## RULES
 
-Example:
-- User uploads image + "Convert this to React code"
-- You call: image_to_code(component_name="GeneratedUI", additional_instructions="Convert to React code")
+- `image_to_code` = ONCE per session (first image)
+- `modify_code` = ALL changes after that (no current_code needed!)
+- NEVER output raw code - it auto-saves to sandbox
+- After tool call: "✅ Done. Preview: [URL]"
 
-## CRITICAL: NEVER OUTPUT RAW CODE
+## EXAMPLES
 
-**NEVER paste or output the generated code in your response!**
+User: "alle rahmen grün"
+→ Call: modify_code(modification_request="Change all borders/frames to green")
 
-The code is automatically saved to the sandbox. After calling `image_to_code` or `modify_code`:
-1. Tell the user the code was generated successfully
-2. Share the preview URL from the tool result
-3. DO NOT output the code itself - it's already in the sandbox!
+User: "make button red"  
+→ Call: modify_code(modification_request="Change button color to red")
 
-Example response after code generation:
-"✅ I've converted your UI to React + Tailwind code! 
-View the live preview: http://localhost:3000/preview?id=xxx"
+User: [uploads image]
+→ Call: image_to_code(component_name="GeneratedUI")
 
-## When There's NO Image
-
-If the user sends text without an image:
-- If they want a NEW design image created → use `generate_design_image`
-- If they want to modify existing code → use `modify_code`
-- If they want brand info from a URL → use `extract_brand_identity`
-- If they have questions → answer them
-
-## Your Tools
-
-1. `image_to_code` - Converts uploaded screenshots to React + Tailwind code (auto-saves to sandbox)
-2. `modify_code` - Modifies existing code based on user requests (auto-saves to sandbox)
-3. `generate_design_image` - Creates NEW design images from descriptions
-4. `extract_brand_identity` - Gets brand info from URLs
-5. `analyze_design_style` - Extracts style info from designs
-
-## Response Style
-
-- Be brief and action-oriented
-- Don't ask unnecessary questions
-- Just do what needs to be done
-- Share the preview URL after generating code
-- NEVER paste raw code - it's in the sandbox!
-
-You are here to help designers create beautiful, consistent designs quickly!"""
+BE FAST. Call the tool now."""
 
 
 class AgentState(TypedDict):
@@ -157,15 +145,25 @@ def create_agent_graph():
         prompt=DESIGN_AGENT_SYSTEM_PROMPT,
     )
     
-    # Create a wrapper graph that extracts images first
-    def extract_images_node(state: AgentState) -> AgentState:
+    # Import here to avoid circular dependency
+    from app.tools.tool_state import set_thread_id
+    from langchain_core.runnables import RunnableConfig
+    
+    # Create a wrapper graph that extracts images and sets thread_id
+    def extract_images_node(state: AgentState, config: RunnableConfig) -> AgentState:
         """Node that extracts images from messages and stores in tool state."""
+        # Extract thread_id from config and store in tool state
+        thread_id = config.get("configurable", {}).get("thread_id", "")
+        set_thread_id(thread_id)
+        if thread_id:
+            print(f"  🔗 [SESSION] Thread ID set: {thread_id[:8]}...")
+        
         extract_images_from_state(state)
         return state
     
-    def agent_node(state: AgentState) -> AgentState:
+    def agent_node(state: AgentState, config: RunnableConfig) -> AgentState:
         """Node that runs the react agent."""
-        result = react_agent.invoke(state)
+        result = react_agent.invoke(state, config)
         return result
     
     # Build the graph
@@ -181,7 +179,8 @@ def create_agent_graph():
     graph.add_edge("agent", END)
     
     # Compile with checkpointer
-    return graph.compile(checkpointer=_checkpointer)
+    checkpointer = setup_checkpointer()
+    return graph.compile(checkpointer=checkpointer)
 
 
 # Export function for langgraph.json

@@ -16,6 +16,9 @@ FIRECRAWL_API_KEY = os.getenv("FIRECRAWL_API_KEY")
 # ChromaDB Configuration
 CHROMA_PERSIST_DIR = os.getenv("CHROMA_PERSIST_DIR", "./chroma_db")
 
+# SQLite Database for Session Persistence
+SQLITE_DB_PATH = os.getenv("SQLITE_DB_PATH", "./checkpoints.db")
+
 # LangSmith Configuration (optional, for tracing & monitoring)
 LANGSMITH_TRACING = os.getenv("LANGSMITH_TRACING", "false")
 LANGSMITH_API_KEY = os.getenv("LANGSMITH_API_KEY")

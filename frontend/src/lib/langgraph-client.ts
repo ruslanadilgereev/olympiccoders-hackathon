@@ -1,6 +1,6 @@
 import { Client } from '@langchain/langgraph-sdk';
 
-const LANGGRAPH_API_URL = process.env.NEXT_PUBLIC_LANGGRAPH_API_URL || 
+const LANGGRAPH_API_URL = process.env.NEXT_PUBLIC_LANGGRAPH_API_URL ||
   'http://127.0.0.1:2024';
 
 const LANGSMITH_API_KEY = process.env.NEXT_PUBLIC_LANGSMITH_API_KEY || '';
@@ -23,6 +23,75 @@ export interface StreamChunk {
 export async function createThread(): Promise<string> {
   const thread = await client.threads.create();
   return thread.thread_id;
+}
+
+// --- Session Persistence ---
+
+const THREAD_STORAGE_KEY = 'designforge_thread_id';
+
+/**
+ * Get existing thread from localStorage or create a new one.
+ * This enables session persistence across page reloads.
+ */
+export async function getOrCreateThread(): Promise<string> {
+  // Check localStorage first
+  if (typeof window !== 'undefined') {
+    const storedThreadId = localStorage.getItem(THREAD_STORAGE_KEY);
+    if (storedThreadId) {
+      try {
+        // Verify thread still exists on server
+        await client.threads.get(storedThreadId);
+        console.log('[SESSION] Restored thread from localStorage:', storedThreadId.slice(0, 8) + '...');
+        return storedThreadId;
+      } catch {
+        // Thread no longer exists, create new one
+        console.log('[SESSION] Stored thread expired, creating new one');
+        localStorage.removeItem(THREAD_STORAGE_KEY);
+      }
+    }
+  }
+
+  // Create new thread
+  const thread = await client.threads.create();
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(THREAD_STORAGE_KEY, thread.thread_id);
+    console.log('[SESSION] Created new thread:', thread.thread_id.slice(0, 8) + '...');
+  }
+  return thread.thread_id;
+}
+
+/**
+ * List all available threads from the server.
+ */
+export async function listThreads(): Promise<Array<{ thread_id: string }>> {
+  try {
+    const threads = await client.threads.search({});
+    return threads;
+  } catch {
+    console.warn('[SESSION] Failed to list threads');
+    return [];
+  }
+}
+
+/**
+ * Clear the stored thread from localStorage.
+ * Use this to start a fresh session.
+ */
+export function clearStoredThread(): void {
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem(THREAD_STORAGE_KEY);
+    console.log('[SESSION] Cleared stored thread');
+  }
+}
+
+/**
+ * Get the currently stored thread ID without creating a new one.
+ */
+export function getStoredThreadId(): string | null {
+  if (typeof window !== 'undefined') {
+    return localStorage.getItem(THREAD_STORAGE_KEY);
+  }
+  return null;
 }
 
 // Helper to extract text content from various formats
@@ -55,12 +124,12 @@ export async function* streamMessage(
 ): AsyncGenerator<StreamChunk> {
   const messageContent = images?.length
     ? [
-        { type: 'text', text: message },
-        ...images.map((img) => ({
-          type: 'image_url',
-          image_url: { url: `data:image/jpeg;base64,${img}` },
-        })),
-      ]
+      { type: 'text', text: message },
+      ...images.map((img) => ({
+        type: 'image_url',
+        image_url: { url: `data:image/jpeg;base64,${img}` },
+      })),
+    ]
     : message;
 
   const input = {
@@ -78,7 +147,7 @@ export async function* streamMessage(
       input,
       streamMode: ['events', 'messages-tuple', 'values'],
     });
-    
+
     console.log('[LANGGRAPH] Stream started with events mode');
 
     let currentText = '';
@@ -86,7 +155,7 @@ export async function* streamMessage(
     const detectedImages: string[] = [];
     const activeTools: Set<string> = new Set();
     let hasYieldedThinking = false;
-    let hasYieldedCode = false; // Prevent duplicate code yields
+    let lastCodeYielded = ''; // Track last yielded code to prevent duplicates but allow updates
 
     for await (const event of stream) {
       try {
@@ -101,9 +170,9 @@ export async function* streamMessage(
         if (eventType === 'events' && data?.event) {
           const nestedEvent = data.event as string;
           const nestedData = data.data as Record<string, unknown>;
-          
+
           console.log('[LANGGRAPH] Nested event:', nestedEvent, nestedData);
-          
+
           // Handle tool events
           if (nestedEvent === 'on_tool_start') {
             const toolName = (data.name as string) || 'unknown_tool';
@@ -112,8 +181,8 @@ export async function* streamMessage(
               yield { type: 'thinking', content: 'Thinking...' };
             }
             activeTools.add(toolName);
-            yield { 
-              type: 'tool_start', 
+            yield {
+              type: 'tool_start',
               content: `Using ${toolName}...`,
               toolName,
               toolArgs: nestedData as Record<string, unknown>,
@@ -121,22 +190,34 @@ export async function* streamMessage(
           } else if (nestedEvent === 'on_tool_end') {
             const toolName = (data.name as string) || 'unknown_tool';
             activeTools.delete(toolName);
+
+            // Check for code in output - handle both object and JSON string formats
+            let output = nestedData?.output as Record<string, unknown>;
             
-            // Check for code in output
-            const output = nestedData?.output as Record<string, unknown>;
-            if (output?.code && typeof output.code === 'string' && !hasYieldedCode) {
+            // If output is a string, try to parse it as JSON
+            if (typeof output === 'string') {
+              try {
+                output = JSON.parse(output);
+              } catch {
+                // Not JSON, keep as is
+              }
+            }
+            
+            console.log('[LANGGRAPH] Tool end output for', toolName, ':', typeof output, output?.code ? 'has code' : 'no code');
+            
+            if (output?.code && typeof output.code === 'string' && output.code !== lastCodeYielded) {
               console.log('[LANGGRAPH] Code found in tool output:', output.code.length, 'chars');
-              hasYieldedCode = true;
-              yield { 
-                type: 'code', 
+              lastCodeYielded = output.code;
+              yield {
+                type: 'code',
                 content: 'Code generated',
                 code: output.code,
                 toolName,
               };
             }
-            
-            yield { 
-              type: 'tool_end', 
+
+            yield {
+              type: 'tool_end',
               content: output?.ai_notes as string || 'Completed',
               toolName,
             };
@@ -155,7 +236,7 @@ export async function* streamMessage(
             }
           }
         }
-        
+
         // Handle 'messages' type which contains the full message array
         if (eventType === 'messages' && Array.isArray(data)) {
           // data is the tuple [message, metadata]
@@ -168,8 +249,8 @@ export async function* streamMessage(
                 const toolName = tc.name as string;
                 if (toolName && !activeTools.has(toolName)) {
                   activeTools.add(toolName);
-                  yield { 
-                    type: 'tool_start', 
+                  yield {
+                    type: 'tool_start',
                     content: `Using ${toolName}...`,
                     toolName,
                     toolArgs: tc.args as Record<string, unknown>,
@@ -177,25 +258,28 @@ export async function* streamMessage(
                 }
               }
             }
-            
+
             // Check for tool message with code result
-            if (message.type === 'tool' && message.content && !hasYieldedCode) {
+            if (message.type === 'tool' && message.content) {
+              const msgToolName = message.name as string || 'unknown';
+              console.log('[LANGGRAPH] Tool message from', msgToolName, '- parsing content...');
               try {
-                const content = typeof message.content === 'string' 
-                  ? JSON.parse(message.content) 
+                const content = typeof message.content === 'string'
+                  ? JSON.parse(message.content)
                   : message.content;
-                if (content?.code && typeof content.code === 'string') {
-                  console.log('[LANGGRAPH] Code found in tool message:', content.code.length, 'chars');
-                  hasYieldedCode = true;
+                console.log('[LANGGRAPH] Parsed tool content:', content?.code ? `has code (${content.code.length} chars)` : 'no code');
+                if (content?.code && typeof content.code === 'string' && content.code !== lastCodeYielded) {
+                  console.log('[LANGGRAPH] NEW code found in tool message:', content.code.length, 'chars');
+                  lastCodeYielded = content.code;
                   const toolName = message.name as string || 'image_to_code';
                   activeTools.delete(toolName);
-                  yield { 
-                    type: 'tool_end', 
+                  yield {
+                    type: 'tool_end',
                     content: content.ai_notes || 'Code generated',
                     toolName,
                   };
-                  yield { 
-                    type: 'code', 
+                  yield {
+                    type: 'code',
                     content: 'Code generated',
                     code: content.code,
                     toolName,
@@ -205,7 +289,7 @@ export async function* streamMessage(
                 // Not JSON, ignore
               }
             }
-            
+
             // Check for AI message content
             if ((message.type === 'ai' || message.role === 'assistant') && message.content) {
               const msgContent = extractTextContent(message.content);
@@ -217,31 +301,39 @@ export async function* streamMessage(
             }
           }
         }
-        
-        // Handle 'values' type which contains the final state (fallback if code wasn't yielded yet)
-        if (eventType === 'values' && data?.messages && Array.isArray(data.messages) && !hasYieldedCode) {
-          const messages = data.messages as Record<string, unknown>[];
-          for (const msg of messages) {
-            // Look for tool messages with code
-            if (msg.type === 'tool' && msg.content && !hasYieldedCode) {
-              try {
-                const content = typeof msg.content === 'string' 
-                  ? JSON.parse(msg.content) 
-                  : msg.content;
-                if (content?.code && typeof content.code === 'string') {
-                  console.log('[LANGGRAPH] Code found in values (fallback):', content.code.length, 'chars');
-                  hasYieldedCode = true;
-                  yield { 
-                    type: 'code', 
-                    content: 'Code generated',
-                    code: content.code,
-                    toolName: msg.name as string || 'image_to_code',
-                  };
+
+        // Handle 'values' type which contains the final state
+        // SKIP if we already got code from tool messages - those are more current!
+        if (eventType === 'values' && data?.messages && Array.isArray(data.messages)) {
+          // Only process if we haven't received any code yet
+          if (!lastCodeYielded) {
+            const messages = data.messages as Record<string, unknown>[];
+            // Find the last tool message with code (iterate in reverse)
+            for (let i = messages.length - 1; i >= 0; i--) {
+              const msg = messages[i];
+              if (msg.type === 'tool' && msg.content) {
+                try {
+                  const content = typeof msg.content === 'string'
+                    ? JSON.parse(msg.content)
+                    : msg.content;
+                  if (content?.code && typeof content.code === 'string') {
+                    console.log('[LANGGRAPH] Code found in values (fallback):', content.code.length, 'chars');
+                    lastCodeYielded = content.code;
+                    yield {
+                      type: 'code',
+                      content: 'Code generated',
+                      code: content.code,
+                      toolName: msg.name as string || 'image_to_code',
+                    };
+                    break; // Only yield the most recent code
+                  }
+                } catch {
+                  // Not JSON, ignore
                 }
-              } catch {
-                // Not JSON, ignore
               }
             }
+          } else {
+            console.log('[LANGGRAPH] Skipping values - already have code from tool message');
           }
         }
 
@@ -259,13 +351,13 @@ export async function* streamMessage(
             if (data?.chunk) {
               const chunk = data.chunk as Record<string, unknown>;
               let newContent = extractTextContent(chunk.content);
-              
+
               // Also check for Gemini's format with kwargs
               if (!newContent && chunk.kwargs) {
                 const kwargs = chunk.kwargs as Record<string, unknown>;
                 newContent = extractTextContent(kwargs.content);
               }
-              
+
               if (newContent) {
                 currentText += newContent;
                 if (currentText !== lastYieldedText) {
@@ -281,7 +373,7 @@ export async function* streamMessage(
             if (data?.output) {
               const output = data.output as Record<string, unknown>;
               const outputContent = extractTextContent(output.content);
-              
+
               if (outputContent && outputContent !== lastYieldedText) {
                 currentText = outputContent;
                 lastYieldedText = currentText;
@@ -295,9 +387,9 @@ export async function* streamMessage(
             const toolName = (data?.name as string) || 'unknown_tool';
             const toolArgs = data?.input as Record<string, unknown> || {};
             activeTools.add(toolName);
-            
-            yield { 
-              type: 'tool_start', 
+
+            yield {
+              type: 'tool_start',
               content: `Using ${toolName}...`,
               toolName,
               toolArgs,
@@ -308,11 +400,11 @@ export async function* streamMessage(
             // Tool execution finished
             const endToolName = (data?.name as string) || 'unknown_tool';
             activeTools.delete(endToolName);
-            
+
             const toolOutput = data?.output;
             let toolResult = '';
             let extractedCode: string | undefined;
-            
+
             if (typeof toolOutput === 'string') {
               // Try to parse if it's a JSON string
               try {
@@ -326,7 +418,7 @@ export async function* streamMessage(
               }
             } else if (toolOutput && typeof toolOutput === 'object') {
               const outputObj = toolOutput as Record<string, unknown>;
-              
+
               // Check for image generation results
               if (outputObj.filename) {
                 const filename = outputObj.filename as string;
@@ -339,7 +431,7 @@ export async function* streamMessage(
                 detectedImages.push(imageData);
                 yield { type: 'image', content: imageData };
               }
-              
+
               // Check for code generation results
               if (outputObj.code && typeof outputObj.code === 'string') {
                 extractedCode = outputObj.code;
@@ -348,9 +440,9 @@ export async function* streamMessage(
               } else {
                 console.log(`[LANGGRAPH] No code in output for ${endToolName}:`, Object.keys(outputObj));
               }
-              
+
               if (outputObj.success) {
-                toolResult = outputObj.ai_notes as string || 
+                toolResult = outputObj.ai_notes as string ||
                   (outputObj.code ? 'Code generated successfully' : 'Completed successfully');
               } else if (outputObj.error) {
                 toolResult = `Error: ${outputObj.error}`;
@@ -358,20 +450,20 @@ export async function* streamMessage(
                 toolResult = JSON.stringify(toolOutput).slice(0, 200);
               }
             }
-            
+
             // Yield code chunk FIRST if we have code (so frontend updates immediately)
             if (extractedCode) {
-              yield { 
-                type: 'code', 
+              yield {
+                type: 'code',
                 content: extractedCode,
                 code: extractedCode,
                 toolName: endToolName,
               };
             }
-            
+
             // Then yield the tool_end event
-            yield { 
-              type: 'tool_end', 
+            yield {
+              type: 'tool_end',
               content: toolResult,
               toolName: endToolName,
             };
@@ -466,7 +558,7 @@ export async function* streamMessage(
         yield { type: 'image', content: filenameMatch[1], imageUrl };
       }
     }
-    
+
     // Fallback: check for base64 images
     const base64Pattern = /["']?image_base64["']?\s*:\s*["']([A-Za-z0-9+/=]{100,})["']/g;
     let match;
@@ -481,11 +573,11 @@ export async function* streamMessage(
 
   } catch (error) {
     console.error('Stream error:', error);
-    
+
     // Parse error message for better user feedback
     let errorMessage = 'Failed to connect to AI';
     const errorStr = error instanceof Error ? error.message : String(error);
-    
+
     if (errorStr.includes('529') || errorStr.includes('overloaded')) {
       errorMessage = '⏳ Die API ist gerade überlastet. Bitte warte kurz und versuche es erneut.';
     } else if (errorStr.includes('400') || errorStr.includes('BadRequest')) {
@@ -499,9 +591,9 @@ export async function* streamMessage(
     } else if (error instanceof Error) {
       errorMessage = error.message;
     }
-    
-    yield { 
-      type: 'error', 
+
+    yield {
+      type: 'error',
       content: errorMessage
     };
     yield { type: 'done', content: '' };

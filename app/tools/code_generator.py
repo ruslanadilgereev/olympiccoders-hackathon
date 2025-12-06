@@ -12,7 +12,7 @@ from google import genai
 from google.genai import types
 
 from app.config import GOOGLE_API_KEY
-from app.tools.tool_state import get_image_from_state
+from app.tools.tool_state import get_image_from_state, get_thread_id, get_current_code, set_current_code
 
 
 def log_progress(tool_name: str, step: str, details: str = ""):
@@ -27,13 +27,14 @@ def log_progress(tool_name: str, step: str, details: str = ""):
 SANDBOX_API_URL = "http://localhost:3000/api/generate"
 
 
-def save_to_sandbox(code: str, name: str, prompt: str = "") -> dict:
+def save_to_sandbox(code: str, name: str, prompt: str = "", thread_id: str = "") -> dict:
     """Save generated code to the frontend sandbox."""
     try:
         data = json.dumps({
             "code": code,
             "name": name,
             "prompt": prompt,
+            "threadId": thread_id,
         }).encode('utf-8')
         
         req = urllib.request.Request(
@@ -81,6 +82,7 @@ Your task is to convert UI screenshots into pixel-perfect React code. Follow the
    - Clean, readable code with proper indentation
    - Semantic HTML elements
    - Responsive considerations where obvious
+   - ALWAYS import ALL icons used from lucide-react (e.g., `import { Mail, User, Lock } from 'lucide-react'`)
 4. **Color Matching**: Extract exact colors from the image and use them (hex codes in Tailwind arbitrary values like `bg-[#1a1a2e]`)
 5. **Typography**: Match font sizes, weights, and spacing precisely
 6. **Layout**: Use Flexbox/Grid appropriately, match padding/margins exactly
@@ -207,9 +209,13 @@ Requirements:
         
         log_progress("IMAGE_TO_CODE", "Complete", f"Generated {len(generated_code)} chars of code")
         
-        # Auto-save to sandbox
-        log_progress("IMAGE_TO_CODE", "Saving", "Saving to sandbox...")
-        sandbox_result = save_to_sandbox(generated_code, component_name, additional_instructions or "")
+        # CRITICAL: Store code in state for modify_code to use!
+        set_current_code(generated_code, component_name)
+        
+        # Auto-save to sandbox with thread_id for session linking
+        thread_id = get_thread_id() or ""
+        log_progress("IMAGE_TO_CODE", "Saving", f"Saving to sandbox (thread: {thread_id[:8] if thread_id else 'none'})...")
+        sandbox_result = save_to_sandbox(generated_code, component_name, additional_instructions or "", thread_id)
         
         # Always return the code so frontend can update sandbox immediately
         preview_url = "/preview"
@@ -260,22 +266,21 @@ Requirements:
 
 @tool
 def modify_code(
-    current_code: str,
     modification_request: str,
+    current_code: Optional[str] = None,
     selected_element: Optional[str] = None,
 ) -> dict:
     """
     Modify existing React code based on user instructions.
     
-    This tool takes existing code and applies modifications based on
-    natural language instructions, optionally targeting a specific element.
+    This tool automatically uses the last generated code from the session.
+    You do NOT need to pass current_code - it's retrieved automatically!
     
     Args:
-        current_code: The current React component code to modify
         modification_request: Natural language description of the desired change,
                             e.g., "Make the button red" or "Add a header"
-        selected_element: Optional description of the selected element to modify,
-                         e.g., "Button with text 'Submit'" or "The main card"
+        current_code: Optional - will be auto-retrieved from state if not provided
+        selected_element: Optional description of the selected element to modify
     
     Returns:
         dict containing:
@@ -286,15 +291,31 @@ def modify_code(
     try:
         log_progress("MODIFY_CODE", "Starting", f"Request: {modification_request[:50]}...")
         
-        if selected_element:
-            log_progress("MODIFY_CODE", "Step 1/3", f"Target element: {selected_element[:30]}...")
+        # AUTO-RETRIEVE CODE FROM STATE if not provided!
+        if not current_code:
+            stored_code, stored_name = get_current_code()
+            if stored_code:
+                current_code = stored_code
+                log_progress("MODIFY_CODE", "Step 1/3", f"Using stored code: {len(current_code)} chars")
+            else:
+                return {
+                    "success": False,
+                    "error": "No code found in session. Please generate code first with image_to_code.",
+                }
         else:
-            log_progress("MODIFY_CODE", "Step 1/3", "Analyzing code structure...")
+            log_progress("MODIFY_CODE", "Step 1/3", f"Using provided code: {len(current_code)} chars")
+        
+        if selected_element:
+            log_progress("MODIFY_CODE", "Element", f"Target: {selected_element[:30]}...")
         
         user_prompt = f"""You are an expert React developer. Modify the given code according to the user's request.
-Keep the code structure intact and only change what's necessary.
-Maintain the same coding style and conventions.
-Output only the complete modified code, no explanations.
+
+CRITICAL RULES:
+1. Keep the code structure intact and only change what's necessary
+2. Maintain the same coding style and conventions
+3. ALWAYS ensure ALL icons used are imported from lucide-react
+4. If you add any icon, ADD IT TO THE IMPORT STATEMENT
+5. Output the COMPLETE code including all imports
 
 Here is the current React component code:
 
@@ -351,10 +372,14 @@ Return the code in the structured JSON format specified."""
         
         log_progress("MODIFY_CODE", "Complete", f"Modified {len(modified_code)} chars of code")
         
-        # Auto-save to sandbox
+        # CRITICAL: Update code in state for next modification!
+        set_current_code(modified_code)
+        
+        # Auto-save to sandbox with thread_id for session linking
         component_name = f"Modified_{len(_generated_code)}"
-        log_progress("MODIFY_CODE", "Saving", "Saving to sandbox...")
-        sandbox_result = save_to_sandbox(modified_code, component_name, modification_request)
+        thread_id = get_thread_id() or ""
+        log_progress("MODIFY_CODE", "Saving", f"Saving to sandbox (thread: {thread_id[:8] if thread_id else 'none'})...")
+        sandbox_result = save_to_sandbox(modified_code, component_name, modification_request, thread_id)
         
         preview_url = "/preview"
         file_path = f"src/generated/components/{component_name}.tsx"

@@ -143,6 +143,10 @@ interface DesignStore {
   // Thread
   threadId: string | null;
   setThreadId: (id: string | null) => void;
+  
+  // Session management - flag to indicate new session needed
+  needsNewSession: boolean;
+  setNeedsNewSession: (value: boolean) => void;
 }
 
 export const useDesignStore = create<DesignStore>((set) => ({
@@ -270,5 +274,9 @@ export const useDesignStore = create<DesignStore>((set) => ({
   // Thread
   threadId: null,
   setThreadId: (id) => set({ threadId: id }),
+  
+  // Session management
+  needsNewSession: true, // Start with true so first visit creates new session
+  setNeedsNewSession: (value) => set({ needsNewSession: value }),
 }));
 
