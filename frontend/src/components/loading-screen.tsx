@@ -40,7 +40,7 @@ export function LoadingScreen() {
           animate={{ opacity: 1 }}
           transition={{ delay: 0.3 }}
         >
-          <h2 className="text-xl font-semibold mb-2">DesignForge AI</h2>
+          <h2 className="text-xl font-semibold mb-2">Mimicry AI</h2>
           <div className="flex items-center justify-center gap-1">
             <span className="text-muted-foreground">Loading</span>
             <motion.span

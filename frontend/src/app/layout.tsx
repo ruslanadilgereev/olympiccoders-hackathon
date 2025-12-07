@@ -14,12 +14,12 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "DesignForge AI | AI-Powered Design Assistant",
+  title: "Mimicry AI | AI-Powered Design Assistant",
   description: "Generate stunning UI mockups and design assets with AI. Upload your brand assets, describe what you need, and let AI create consistent, beautiful designs instantly.",
   keywords: ["AI design", "UI mockup", "design automation", "brand consistency", "AI assistant"],
-  authors: [{ name: "DesignForge Team" }],
+  authors: [{ name: "Mimicry Team" }],
   openGraph: {
-    title: "DesignForge AI | AI-Powered Design Assistant",
+    title: "Mimicry AI | AI-Powered Design Assistant",
     description: "Generate stunning UI mockups and design assets with AI",
     type: "website",
   },

@@ -1,9 +1,9 @@
 [project]
 name = "hackathon-agent"
 version = "0.1.0"
-description = "DesignForge AI - Design Automation Agent"
+description = "Mimicry AI - Design Automation Agent"
 authors = [
-    {name = "DesignForge Team", email = "team@designforge.ai"},
+    {name = "Mimicry Team", email = "team@Mimicry.ai"},
 ]
 dependencies = [
     "langchain>=1.1.0",

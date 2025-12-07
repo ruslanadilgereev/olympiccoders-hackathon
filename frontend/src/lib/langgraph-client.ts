@@ -16,10 +16,9 @@ let cachedAssistantId: string | null = PRESET_ASSISTANT_ID || null;
 async function ensureAssistantId(): Promise<string> {
   if (cachedAssistantId) return cachedAssistantId;
 
-  // Create a lightweight assistant for the graph if none was provided
   const assistant = await client.assistants.create({
     graphId: 'agent',
-    name: 'DesignForge Assistant',
+    name: 'Mimicry Assistant',
   });
 
   cachedAssistantId = assistant.assistant_id;
@@ -27,12 +26,29 @@ async function ensureAssistantId(): Promise<string> {
 }
 
 export interface StreamChunk {
-  type: 'text' | 'tool_start' | 'tool_end' | 'image' | 'code' | 'thinking' | 'done' | 'error';
+  type: 'text' | 'tool_start' | 'tool_end' | 'tool_progress' | 'image' | 'code' | 'thinking' | 'thought' | 'done' | 'error' | 'run_id' | 'cancelled';
   content: string;
   toolName?: string;
   toolArgs?: Record<string, unknown>;
-  imageUrl?: string; // URL to load image from (instead of base64)
-  code?: string; // Generated code from image_to_code or modify_code
+  imageUrl?: string;
+  code?: string;
+  step?: number;
+  totalSteps?: number;
+  runId?: string;
+}
+
+/**
+ * Cancel a running agent execution.
+ * The agent's state is preserved via checkpointing, so follow-up messages
+ * will have full context of what was done before cancellation.
+ */
+export async function cancelRun(threadId: string, runId: string): Promise<void> {
+  try {
+    await client.runs.cancel(threadId, runId);
+  } catch (error) {
+    console.warn('Error cancelling run:', error);
+    // Don't throw - the run might have already completed
+  }
 }
 
 export async function createThread(): Promise<string> {
@@ -63,6 +79,77 @@ function extractTextContent(content: unknown): string {
   return '';
 }
 
+// Deduplication tracker for streaming
+// NOTE: Tools can be called MULTIPLE TIMES with same name (e.g., generate_screen x4)
+// We use unique call IDs (incrementing counter) to track each invocation separately
+class StreamState {
+  private lastYieldedText = '';
+  private lastYieldedCodeHash = ''; // Track last code content to avoid duplicates
+  private yieldedImages = new Set<string>();
+  private hasYieldedThinking = false;
+  
+  // Track active tool calls by unique ID (tool_name + counter)
+  private toolCallCounter = 0;
+  private activeToolCalls = new Map<string, number>(); // toolName -> callId
+
+  shouldYieldText(text: string): boolean {
+    const trimmed = text.trim();
+    if (!trimmed || trimmed === this.lastYieldedText.trim()) {
+      return false;
+    }
+    this.lastYieldedText = text;
+    return true;
+  }
+
+  // Tool start: always yield, track with unique call ID
+  shouldYieldToolStart(toolName: string): boolean {
+    // If this tool is already active, still allow it (nested/parallel calls)
+    // Generate unique call ID for this invocation
+    this.toolCallCounter++;
+    this.activeToolCalls.set(toolName, this.toolCallCounter);
+    return true; // Always yield tool starts
+  }
+
+  // Tool end: always yield, clean up tracking
+  shouldYieldToolEnd(toolName: string): boolean {
+    // Clean up the active call tracking
+    this.activeToolCalls.delete(toolName);
+    return true; // Always yield tool ends
+  }
+
+  shouldYieldCode(toolName: string, code: string): boolean {
+    // Generate a more robust hash that samples from different parts of the code
+    // This catches changes in the middle of files (like color changes)
+    const len = code.length;
+    const mid = Math.floor(len / 2);
+    const codeHash = code.slice(0, 50) + code.slice(mid, mid + 50) + code.slice(-50) + len;
+    
+    // Don't yield if exact same code was already yielded
+    if (this.lastYieldedCodeHash === codeHash) {
+      return false;
+    }
+    
+    this.lastYieldedCodeHash = codeHash;
+    return true; // Always yield code (after hash dedup)
+  }
+
+  shouldYieldImage(imageKey: string): boolean {
+    if (this.yieldedImages.has(imageKey)) return false;
+    this.yieldedImages.add(imageKey);
+    return true;
+  }
+
+  shouldYieldThinking(): boolean {
+    if (this.hasYieldedThinking) return false;
+    this.hasYieldedThinking = true;
+    return true;
+  }
+
+  getLastText(): string {
+    return this.lastYieldedText;
+  }
+}
+
 export async function* streamMessage(
   threadId: string,
   message: string,
@@ -81,446 +168,310 @@ export async function* streamMessage(
     : message;
 
   const input = {
-    messages: [
-      {
-        role: 'user',
-        content: messageContent,
-      },
-    ],
+    messages: [{ role: 'user', content: messageContent }],
   };
 
   try {
-    // Use events mode to get tool_start/tool_end events for live updates
     const stream = client.runs.stream(threadId, assistantId || 'agent', {
       input,
-      streamMode: ['events', 'messages-tuple', 'values'],
+      streamMode: ['events', 'values'],
+      config: {
+        recursion_limit: 100,
+      },
     });
-    
-    console.log('[LANGGRAPH] Stream started with events mode');
 
-    let currentText = '';
-    let lastYieldedText = '';
-    const detectedImages: string[] = [];
-    const activeTools: Set<string> = new Set();
-    let hasYieldedThinking = false;
-    let hasYieldedCode = false; // Prevent duplicate code yields
+    const state = new StreamState();
+    let streamingText = '';
+    let runIdYielded = false;
 
     for await (const event of stream) {
+      // Yield run ID on first event so caller can cancel if needed
+      if (!runIdYielded) {
+        // The run_id is available from the stream's internal state
+        // We extract it from metadata events or use the thread context
+        const eventData = event.data as Record<string, unknown>;
+        const runId = eventData?.run_id as string | undefined;
+        if (runId) {
+          yield { type: 'run_id', content: '', runId };
+          runIdYielded = true;
+        }
+      }
       try {
-        // Cast to string to avoid TypeScript errors with SDK types
         const eventType = event.event as string;
         const data = event.data as Record<string, unknown>;
 
-        // Debug log for development - enabled to track events
-        console.log('[LANGGRAPH] Event:', eventType, data);
-
-        // Handle 'events' type which contains nested event data
+        // Handle nested events (from 'events' stream mode)
         if (eventType === 'events' && data?.event) {
           const nestedEvent = data.event as string;
           const nestedData = data.data as Record<string, unknown>;
-          
-          console.log('[LANGGRAPH] Nested event:', nestedEvent, nestedData);
-          
-          // Handle tool events
+
           if (nestedEvent === 'on_tool_start') {
             const toolName = (data.name as string) || 'unknown_tool';
-            if (!hasYieldedThinking) {
-              hasYieldedThinking = true;
-              yield { type: 'thinking', content: 'Thinking...' };
+            if (state.shouldYieldThinking()) {
+              yield { type: 'thinking', content: 'Processing...' };
             }
-            activeTools.add(toolName);
-            yield { 
-              type: 'tool_start', 
-              content: `Using ${toolName}...`,
-              toolName,
-              toolArgs: nestedData as Record<string, unknown>,
-            };
+            if (state.shouldYieldToolStart(toolName)) {
+              yield {
+                type: 'tool_start',
+                content: `Running ${toolName}...`,
+                toolName,
+                toolArgs: nestedData as Record<string, unknown>,
+              };
+            }
           } else if (nestedEvent === 'on_tool_end') {
             const toolName = (data.name as string) || 'unknown_tool';
-            activeTools.delete(toolName);
-            
-            // Check for code in output
             const output = nestedData?.output as Record<string, unknown>;
-            if (output?.code && typeof output.code === 'string' && !hasYieldedCode) {
-              console.log('[LANGGRAPH] Code found in tool output:', output.code.length, 'chars');
-              hasYieldedCode = true;
-              yield { 
-                type: 'code', 
+            
+            // Check for code
+            if (output?.code && typeof output.code === 'string' && state.shouldYieldCode(toolName, output.code)) {
+              yield {
+                type: 'code',
                 content: 'Code generated',
                 code: output.code,
                 toolName,
               };
             }
             
-            yield { 
-              type: 'tool_end', 
-              content: output?.ai_notes as string || 'Completed',
-              toolName,
-            };
+            if (state.shouldYieldToolEnd(toolName)) {
+              // Show actual result, not just "Completed"
+              let toolResult: string;
+              if (output?.error) {
+                toolResult = output.error as string;
+              } else if (output?.ai_notes) {
+                toolResult = output.ai_notes as string;
+              } else if (output) {
+                toolResult = JSON.stringify(output, null, 2);
+              } else {
+                toolResult = 'Completed';
+              }
+              yield {
+                type: 'tool_end',
+                content: toolResult,
+                toolName,
+              };
+            }
           } else if (nestedEvent === 'on_chat_model_stream') {
-            // Text streaming
             const chunk = nestedData?.chunk as Record<string, unknown>;
             if (chunk?.content) {
               const newContent = extractTextContent(chunk.content);
               if (newContent) {
-                currentText += newContent;
-                if (currentText !== lastYieldedText) {
-                  lastYieldedText = currentText;
-                  yield { type: 'text', content: currentText };
+                streamingText += newContent;
+                if (state.shouldYieldText(streamingText)) {
+                  yield { type: 'text', content: streamingText };
                 }
               }
             }
           }
-        }
-        
-        // Handle 'messages' type which contains the full message array
-        if (eventType === 'messages' && Array.isArray(data)) {
-          // data is the tuple [message, metadata]
-          const message = data[0] as Record<string, unknown>;
-          if (message) {
-            // Check for tool calls
-            if (message.tool_calls && Array.isArray(message.tool_calls)) {
-              for (const toolCall of message.tool_calls) {
-                const tc = toolCall as Record<string, unknown>;
-                const toolName = tc.name as string;
-                if (toolName && !activeTools.has(toolName)) {
-                  activeTools.add(toolName);
-                  yield { 
-                    type: 'tool_start', 
-                    content: `Using ${toolName}...`,
-                    toolName,
-                    toolArgs: tc.args as Record<string, unknown>,
-                  };
-                }
-              }
-            }
-            
-            // Check for tool message with code result
-            if (message.type === 'tool' && message.content && !hasYieldedCode) {
-              try {
-                const content = typeof message.content === 'string' 
-                  ? JSON.parse(message.content) 
-                  : message.content;
-                if (content?.code && typeof content.code === 'string') {
-                  console.log('[LANGGRAPH] Code found in tool message:', content.code.length, 'chars');
-                  hasYieldedCode = true;
-                  const toolName = message.name as string || 'image_to_code';
-                  activeTools.delete(toolName);
-                  yield { 
-                    type: 'tool_end', 
-                    content: content.ai_notes || 'Code generated',
-                    toolName,
-                  };
-                  yield { 
-                    type: 'code', 
-                    content: 'Code generated',
-                    code: content.code,
-                    toolName,
-                  };
-                }
-              } catch {
-                // Not JSON, ignore
-              }
-            }
-            
-            // Check for AI message content
-            if ((message.type === 'ai' || message.role === 'assistant') && message.content) {
-              const msgContent = extractTextContent(message.content);
-              if (msgContent && msgContent !== lastYieldedText) {
-                currentText = msgContent;
-                lastYieldedText = currentText;
-                yield { type: 'text', content: currentText };
-              }
-            }
-          }
-        }
-        
-        // Handle 'values' type which contains the final state (fallback if code wasn't yielded yet)
-        if (eventType === 'values' && data?.messages && Array.isArray(data.messages) && !hasYieldedCode) {
-          const messages = data.messages as Record<string, unknown>[];
-          for (const msg of messages) {
-            // Look for tool messages with code
-            if (msg.type === 'tool' && msg.content && !hasYieldedCode) {
-              try {
-                const content = typeof msg.content === 'string' 
-                  ? JSON.parse(msg.content) 
-                  : msg.content;
-                if (content?.code && typeof content.code === 'string') {
-                  console.log('[LANGGRAPH] Code found in values (fallback):', content.code.length, 'chars');
-                  hasYieldedCode = true;
-                  yield { 
-                    type: 'code', 
-                    content: 'Code generated',
-                    code: content.code,
-                    toolName: msg.name as string || 'image_to_code',
-                  };
-                }
-              } catch {
-                // Not JSON, ignore
-              }
-            }
-          }
+          continue;
         }
 
-        // Handle different event types (SDK types are incomplete, these work at runtime)
+        // Handle direct event types
         switch (eventType) {
+          case 'metadata': {
+            // Metadata event contains run_id
+            const runId = data?.run_id as string | undefined;
+            if (runId && !runIdYielded) {
+              yield { type: 'run_id', content: '', runId };
+              runIdYielded = true;
+            }
+            break;
+          }
+
           case 'on_chat_model_start':
-            if (!hasYieldedThinking) {
-              hasYieldedThinking = true;
-              yield { type: 'thinking', content: 'Thinking...' };
+            if (state.shouldYieldThinking()) {
+              yield { type: 'thinking', content: 'Processing...' };
             }
             break;
 
-          case 'on_chat_model_stream':
-            // Streaming text chunks - handle various formats
-            if (data?.chunk) {
-              const chunk = data.chunk as Record<string, unknown>;
-              let newContent = extractTextContent(chunk.content);
-              
-              // Also check for Gemini's format with kwargs
-              if (!newContent && chunk.kwargs) {
-                const kwargs = chunk.kwargs as Record<string, unknown>;
-                newContent = extractTextContent(kwargs.content);
-              }
-              
-              if (newContent) {
-                currentText += newContent;
-                if (currentText !== lastYieldedText) {
-                  lastYieldedText = currentText;
-                  yield { type: 'text', content: currentText };
-                }
+          case 'on_chat_model_stream': {
+            const chunk = data?.chunk as Record<string, unknown>;
+            let newContent = extractTextContent(chunk?.content);
+            if (!newContent && chunk?.kwargs) {
+              const kwargs = chunk.kwargs as Record<string, unknown>;
+              newContent = extractTextContent(kwargs.content);
+            }
+            if (newContent) {
+              streamingText += newContent;
+              if (state.shouldYieldText(streamingText)) {
+                yield { type: 'text', content: streamingText };
               }
             }
             break;
+          }
 
-          case 'on_chat_model_end':
-            // Model finished generating
-            if (data?.output) {
-              const output = data.output as Record<string, unknown>;
-              const outputContent = extractTextContent(output.content);
-              
-              if (outputContent && outputContent !== lastYieldedText) {
-                currentText = outputContent;
-                lastYieldedText = currentText;
-                yield { type: 'text', content: currentText };
-              }
-            }
-            break;
-
-          case 'on_tool_start':
-            // Tool execution starting
+          case 'on_tool_start': {
             const toolName = (data?.name as string) || 'unknown_tool';
-            const toolArgs = data?.input as Record<string, unknown> || {};
-            activeTools.add(toolName);
-            
-            yield { 
-              type: 'tool_start', 
-              content: `Using ${toolName}...`,
-              toolName,
-              toolArgs,
-            };
+            if (state.shouldYieldToolStart(toolName)) {
+              yield {
+                type: 'tool_start',
+                content: `Running ${toolName}...`,
+                toolName,
+                toolArgs: (data?.input as Record<string, unknown>) || {},
+              };
+            }
             break;
+          }
 
-          case 'on_tool_end':
-            // Tool execution finished
-            const endToolName = (data?.name as string) || 'unknown_tool';
-            activeTools.delete(endToolName);
-            
+          case 'on_tool_end': {
+            const toolName = (data?.name as string) || 'unknown_tool';
             const toolOutput = data?.output;
-            let toolResult = '';
+            let toolResult = 'Completed';
             let extractedCode: string | undefined;
-            
+
             if (typeof toolOutput === 'string') {
-              // Try to parse if it's a JSON string
               try {
                 const parsed = JSON.parse(toolOutput);
                 if (parsed.code && typeof parsed.code === 'string') {
                   extractedCode = parsed.code;
                 }
-                toolResult = parsed.success ? 'Completed successfully' : (parsed.error || toolOutput);
+                // Show actual result, not just "Completed"
+              if (parsed.error) {
+                toolResult = parsed.error;
+              } else if (parsed.ai_notes) {
+                toolResult = parsed.ai_notes;
+              } else {
+                toolResult = JSON.stringify(parsed, null, 2);
+              }
               } catch {
                 toolResult = toolOutput;
               }
             } else if (toolOutput && typeof toolOutput === 'object') {
               const outputObj = toolOutput as Record<string, unknown>;
-              
-              // Check for image generation results
+
+              // Handle images
               if (outputObj.filename) {
                 const filename = outputObj.filename as string;
                 const imageUrl = `/api/outputs/${filename}`;
-                detectedImages.push(imageUrl);
-                yield { type: 'image', content: filename, imageUrl };
-              }
-              else if (outputObj.image_base64) {
+                if (state.shouldYieldImage(imageUrl)) {
+                  yield { type: 'image', content: filename, imageUrl };
+                }
+              } else if (outputObj.image_base64) {
                 const imageData = outputObj.image_base64 as string;
-                detectedImages.push(imageData);
-                yield { type: 'image', content: imageData };
+                if (state.shouldYieldImage(imageData.slice(0, 50))) {
+                  yield { type: 'image', content: imageData };
+                }
               }
-              
-              // Check for code generation results
+
+              // Handle code
               if (outputObj.code && typeof outputObj.code === 'string') {
                 extractedCode = outputObj.code;
-                console.log(`[LANGGRAPH] Code extracted from ${endToolName}: ${extractedCode.length} chars`);
-                console.log(`[LANGGRAPH] Code preview: ${extractedCode.substring(0, 100)}...`);
-              } else {
-                console.log(`[LANGGRAPH] No code in output for ${endToolName}:`, Object.keys(outputObj));
               }
-              
-              if (outputObj.success) {
-                toolResult = outputObj.ai_notes as string || 
-                  (outputObj.code ? 'Code generated successfully' : 'Completed successfully');
-              } else if (outputObj.error) {
-                toolResult = `Error: ${outputObj.error}`;
-              } else {
-                toolResult = JSON.stringify(toolOutput).slice(0, 200);
-              }
+
+              // Show the actual result data, not just "Completed"
+            if (outputObj.error) {
+              toolResult = outputObj.error as string;
+            } else if (outputObj.ai_notes) {
+              toolResult = outputObj.ai_notes as string;
+            } else {
+              // Show the full result as formatted JSON
+              toolResult = JSON.stringify(outputObj, null, 2);
             }
-            
-            // Yield code chunk FIRST if we have code (so frontend updates immediately)
-            if (extractedCode) {
-              yield { 
-                type: 'code', 
-                content: extractedCode,
+            }
+
+            // Yield code first
+            if (extractedCode && state.shouldYieldCode(toolName, extractedCode)) {
+              yield {
+                type: 'code',
+                content: 'Code generated',
                 code: extractedCode,
-                toolName: endToolName,
+                toolName,
               };
             }
-            
-            // Then yield the tool_end event
-            yield { 
-              type: 'tool_end', 
-              content: toolResult,
-              toolName: endToolName,
-            };
-            break;
 
-          case 'on_chain_end':
-            // Chain finished - extract final messages
-            if (data?.output) {
-              const output = data.output as Record<string, unknown>;
-              if (output.messages && Array.isArray(output.messages)) {
-                const messages = output.messages;
-                const lastMsg = messages[messages.length - 1] as Record<string, unknown>;
-                if (lastMsg) {
-                  const msgContent = extractTextContent(lastMsg.content);
-                  if (msgContent && msgContent !== lastYieldedText) {
-                    currentText = msgContent;
-                    lastYieldedText = currentText;
-                    yield { type: 'text', content: currentText };
-                  }
-                }
-              }
+            if (state.shouldYieldToolEnd(toolName)) {
+              yield { type: 'tool_end', content: toolResult, toolName };
             }
             break;
+          }
 
-          case 'messages':
-            // Direct messages event (from messages-tuple mode)
-            if (Array.isArray(data)) {
-              for (const item of data) {
-                if (Array.isArray(item) && item.length >= 2) {
-                  const [msgType, msgData] = item;
-                  if (msgType === 'ai' || msgType === 'AIMessageChunk') {
-                    const content = extractTextContent((msgData as Record<string, unknown>)?.content);
-                    if (content && content !== lastYieldedText) {
-                      currentText = content;
-                      lastYieldedText = currentText;
-                      yield { type: 'text', content: currentText };
-                    }
-                  }
-                }
-              }
-            }
-            break;
-
-          case 'values':
-            // Values mode - contains full state
+          case 'values': {
+            // Final state - only process if we haven't streamed text yet
+            // This prevents duplicate text when streaming worked properly
             if (data?.messages && Array.isArray(data.messages)) {
-              const messages = data.messages;
-              const lastMsg = messages[messages.length - 1] as Record<string, unknown>;
-              if (lastMsg?.type === 'ai' || lastMsg?.role === 'assistant') {
-                const msgContent = extractTextContent(lastMsg.content);
-                if (msgContent && msgContent !== lastYieldedText) {
-                  currentText = msgContent;
-                  lastYieldedText = currentText;
-                  yield { type: 'text', content: currentText };
+              const messages = data.messages as Record<string, unknown>[];
+              
+              // Only yield final text if nothing was streamed (fallback)
+              // The shouldYieldText check will prevent duplicates
+              const lastText = state.getLastText();
+              if (!lastText) {
+                // Find the last AI message only if we haven't streamed anything
+                for (let i = messages.length - 1; i >= 0; i--) {
+                  const msg = messages[i];
+                  if (msg?.type === 'ai' || msg?.role === 'assistant') {
+                    const content = extractTextContent(msg.content);
+                    if (content && state.shouldYieldText(content)) {
+                      yield { type: 'text', content };
+                    }
+                    break;
+                  }
+                }
+              }
+
+              // Check for code in tool messages (fallback)
+              for (const msg of messages) {
+                if (msg.type === 'tool' && msg.content) {
+                  try {
+                    const content = typeof msg.content === 'string'
+                      ? JSON.parse(msg.content)
+                      : msg.content;
+                    if (content?.code && typeof content.code === 'string') {
+                      const msgToolName = (msg.name as string) || 'image_to_code';
+                      if (state.shouldYieldCode(msgToolName, content.code)) {
+                        yield {
+                          type: 'code',
+                          content: 'Code generated',
+                          code: content.code,
+                          toolName: msgToolName,
+                        };
+                      }
+                    }
+                  } catch {
+                    // Not JSON
+                  }
                 }
               }
             }
             break;
+          }
 
           case 'error':
             yield { type: 'error', content: String(data?.error || 'Unknown error') };
             break;
-
-          default:
-            // Try to extract content from any event with messages
-            if (data?.messages && Array.isArray(data.messages)) {
-              const lastMsg = data.messages[data.messages.length - 1] as Record<string, unknown>;
-              if (lastMsg) {
-                const msgContent = extractTextContent(lastMsg.content);
-                const isAssistant = lastMsg.role === 'assistant' || lastMsg.type === 'ai';
-                if (isAssistant && msgContent && msgContent !== lastYieldedText) {
-                  currentText = msgContent;
-                  lastYieldedText = currentText;
-                  yield { type: 'text', content: currentText };
-                }
-              }
-            }
-            break;
         }
       } catch (parseError) {
-        console.warn('Error parsing stream event:', parseError, event);
+        console.warn('Error parsing stream event:', parseError);
       }
     }
 
-    // Final check for filenames in the response text
-    const filenamePattern = /["']?filename["']?\s*:\s*["']([^"']+\.(?:png|jpg|jpeg|webp))["']/gi;
-    let filenameMatch;
-    while ((filenameMatch = filenamePattern.exec(currentText)) !== null) {
-      const imageUrl = `/api/outputs/${filenameMatch[1]}`;
-      if (!detectedImages.includes(imageUrl)) {
-        detectedImages.push(imageUrl);
-        yield { type: 'image', content: filenameMatch[1], imageUrl };
-      }
-    }
-    
-    // Fallback: check for base64 images
-    const base64Pattern = /["']?image_base64["']?\s*:\s*["']([A-Za-z0-9+/=]{100,})["']/g;
-    let match;
-    while ((match = base64Pattern.exec(currentText)) !== null) {
-      if (!detectedImages.includes(match[1])) {
-        detectedImages.push(match[1]);
-        yield { type: 'image', content: match[1] };
-      }
-    }
-
-    yield { type: 'done', content: currentText };
+    yield { type: 'done', content: state.getLastText() };
 
   } catch (error) {
     console.error('Stream error:', error);
-    
-    // Parse error message for better user feedback
-    let errorMessage = 'Failed to connect to AI';
     const errorStr = error instanceof Error ? error.message : String(error);
-    
+
+    // Check if this was a cancellation
+    if (errorStr.includes('cancel') || errorStr.includes('abort') || errorStr.includes('interrupted')) {
+      yield { type: 'cancelled', content: 'Generation stopped. You can continue with a follow-up message.' };
+      yield { type: 'done', content: state.getLastText() };
+      return;
+    }
+
+    let errorMessage = 'Failed to connect to AI';
     if (errorStr.includes('529') || errorStr.includes('overloaded')) {
-      errorMessage = '⏳ Die API ist gerade überlastet. Bitte warte kurz und versuche es erneut.';
+      errorMessage = 'The API is currently overloaded. Please wait a moment and try again.';
     } else if (errorStr.includes('400') || errorStr.includes('BadRequest')) {
-      errorMessage = '❌ Fehler bei der Anfrage. Bitte versuche es mit einem anderen Bild oder einer kürzeren Nachricht.';
+      errorMessage = 'Request error. Try with a different image or shorter message.';
     } else if (errorStr.includes('401') || errorStr.includes('Unauthorized')) {
-      errorMessage = '🔑 API-Schlüssel ungültig. Bitte überprüfe die Konfiguration.';
+      errorMessage = 'Invalid API key. Please check configuration.';
     } else if (errorStr.includes('500') || errorStr.includes('Internal')) {
-      errorMessage = '💥 Server-Fehler. Bitte versuche es gleich nochmal.';
+      errorMessage = 'Server error. Please try again shortly.';
     } else if (errorStr.includes('timeout') || errorStr.includes('TIMEOUT')) {
-      errorMessage = '⏱️ Zeitüberschreitung. Die Anfrage hat zu lange gedauert.';
+      errorMessage = 'Request timed out. The operation took too long.';
     } else if (error instanceof Error) {
       errorMessage = error.message;
     }
-    
-    yield { 
-      type: 'error', 
-      content: errorMessage
-    };
+
+    yield { type: 'error', content: errorMessage };
     yield { type: 'done', content: '' };
   }
 }

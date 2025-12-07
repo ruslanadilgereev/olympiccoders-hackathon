@@ -36,13 +36,14 @@ export function navigateToPreview(componentId?: string) {
 export async function saveAndPreview(
   code: string,
   name?: string,
-  prompt?: string
+  prompt?: string,
+  threadId?: string
 ): Promise<{ success: boolean; componentId?: string; previewUrl?: string; error?: string }> {
   try {
     const response = await fetch('/api/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code, name, prompt }),
+      body: JSON.stringify({ code, name, prompt, threadId }),
     });
 
     const data = await response.json();

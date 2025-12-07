@@ -1,14 +1,14 @@
-# DesignForge AI
+# Mimicry AI
 
 > AI-Powered Design Automation Platform for the Hackathon Challenge
 
-![DesignForge](https://img.shields.io/badge/Powered%20by-Gemini%203%20Pro-blue)
+![Mimicry](https://img.shields.io/badge/Powered%20by-Gemini%203%20Pro-blue)
 ![LangGraph](https://img.shields.io/badge/Built%20with-LangGraph-green)
 ![Next.js](https://img.shields.io/badge/Frontend-Next.js%2015-black)
 
 ## Overview
 
-DesignForge AI is an intelligent design assistant that generates professional UI mockups, marketing materials, and visual assets that match your existing brand style. Upload your designs, describe what you need, and watch AI create stunning, on-brand designs in seconds.
+Mimicry AI is an intelligent design assistant that generates professional UI mockups, marketing materials, and visual assets that match your existing brand style. Upload your designs, describe what you need, and watch AI create stunning, on-brand designs in seconds.
 
 ## Features
 
@@ -178,7 +178,7 @@ The LangGraph agent exposes the following tools:
 
 ## Demo Prompts
 
-Try these prompts to see DesignForge in action:
+Try these prompts to see Mimicry in action:
 
 1. **UI Mockup**: "Create a modern login screen for a banking app with a dark theme"
 2. **Marketing**: "Design a promotional banner for a new feature launch"

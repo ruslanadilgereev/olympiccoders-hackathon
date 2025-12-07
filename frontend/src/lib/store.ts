@@ -39,11 +39,22 @@ export interface LayoutInfo {
 
 export interface GeneratedDesign {
   id: string;
-  imageBase64: string;
-  prompt: string;
-  designType: string;
+  // Distinguish between gallery sources
+  type: 'image' | 'component';
+  // Common metadata
+  prompt?: string;
+  designType?: string;
   createdAt: string;
   aiNotes?: string;
+  threadId?: string; // Link to chat thread/conversation
+  // Image specific
+  imageBase64?: string;
+  filename?: string;
+  imageUrl?: string;
+  // Component specific
+  name?: string;
+  componentFilename?: string;
+  previewUrl?: string;
 }
 
 export interface SelectedElement {
@@ -55,6 +66,7 @@ export interface SelectedElement {
 }
 
 export interface ToolActivity {
+  id: string; // Unique ID for tracking multiple instances of same tool
   name: string;
   status: 'running' | 'completed' | 'error';
   args?: Record<string, unknown>;
@@ -79,6 +91,14 @@ export interface AgentStatus {
   progress?: number; // 0-100
 }
 
+// Message segment for chronological display
+export interface MessageSegment {
+  type: 'text' | 'tool' | 'image' | 'code';
+  content?: string;
+  tool?: ToolActivity;
+  imageUrl?: string;
+}
+
 export interface Message {
   id: string;
   role: 'user' | 'assistant';
@@ -88,6 +108,8 @@ export interface Message {
   isStreaming?: boolean;
   isThinking?: boolean;
   activeTools?: ToolActivity[];
+  segments?: MessageSegment[]; // For chronological display
+  segmentedUpTo?: number; // Track position in content that's been segmented (fixes trim mismatch)
   error?: string;
   codeGenerated?: boolean;
 }
@@ -103,6 +125,7 @@ interface DesignStore {
   // Generated Designs
   generatedDesigns: GeneratedDesign[];
   addDesign: (design: GeneratedDesign) => void;
+  setDesigns: (designs: GeneratedDesign[]) => void;
   removeDesign: (id: string) => void;
   clearDesigns: () => void;
 
@@ -112,8 +135,9 @@ interface DesignStore {
   updateMessage: (id: string, content: string) => void;
   updateMessageState: (id: string, updates: Partial<Message>) => void;
   addToolToMessage: (id: string, tool: ToolActivity) => void;
-  updateToolInMessage: (id: string, toolName: string, updates: Partial<ToolActivity>) => void;
+  updateToolInMessage: (id: string, toolId: string, updates: Partial<ToolActivity>) => void;
   addImageToMessage: (id: string, imageBase64: string) => void;
+  addSegmentToMessage: (id: string, segment: MessageSegment, segmentedUpTo?: number) => void;
   clearMessages: () => void;
 
   // Code Builder State
@@ -135,14 +159,18 @@ interface DesignStore {
   // UI State
   isGenerating: boolean;
   setIsGenerating: (value: boolean) => void;
-  activeTab: 'upload' | 'studio' | 'gallery';
-  setActiveTab: (tab: 'upload' | 'studio' | 'gallery') => void;
+  activeTab: 'upload' | 'studio';
+  setActiveTab: (tab: 'upload' | 'studio') => void;
   selectedDesign: GeneratedDesign | null;
   setSelectedDesign: (design: GeneratedDesign | null) => void;
 
   // Thread
   threadId: string | null;
   setThreadId: (id: string | null) => void;
+
+  // Run tracking (for cancellation)
+  currentRunId: string | null;
+  setCurrentRunId: (id: string | null) => void;
 }
 
 export const useDesignStore = create<DesignStore>((set) => ({
@@ -165,7 +193,17 @@ export const useDesignStore = create<DesignStore>((set) => ({
   // Generated Designs
   generatedDesigns: [],
   addDesign: (design) =>
-    set((state) => ({ generatedDesigns: [design, ...state.generatedDesigns] })),
+    set((state) => ({
+      generatedDesigns: [
+        // default to image if not provided (backwards compatibility)
+        { type: design.type || 'image', ...design },
+        ...state.generatedDesigns,
+      ],
+    })),
+  setDesigns: (designs) =>
+    set(() => ({
+      generatedDesigns: designs.map((d) => ({ type: d.type || 'image', ...d })),
+    })),
   removeDesign: (id) =>
     set((state) => ({
       generatedDesigns: state.generatedDesigns.filter((d) => d.id !== id),
@@ -192,18 +230,30 @@ export const useDesignStore = create<DesignStore>((set) => ({
     set((state) => ({
       messages: state.messages.map((m) =>
         m.id === id
-          ? { ...m, activeTools: [...(m.activeTools || []), tool], isThinking: false }
+          ? { 
+              ...m, 
+              activeTools: [...(m.activeTools || []), tool], 
+              isThinking: false,
+              // Also add to segments for chronological display
+              segments: [...(m.segments || []), { type: 'tool' as const, tool }],
+            }
           : m
       ),
     })),
-  updateToolInMessage: (id, toolName, updates) =>
+  updateToolInMessage: (id, toolId, updates) =>
     set((state) => ({
       messages: state.messages.map((m) =>
         m.id === id
           ? {
             ...m,
             activeTools: (m.activeTools || []).map((t) =>
-              t.name === toolName ? { ...t, ...updates } : t
+              t.id === toolId ? { ...t, ...updates } : t
+            ),
+            // Update in segments too
+            segments: (m.segments || []).map((seg) =>
+              seg.type === 'tool' && seg.tool?.id === toolId
+                ? { ...seg, tool: { ...seg.tool, ...updates } }
+                : seg
             ),
           }
           : m
@@ -213,7 +263,25 @@ export const useDesignStore = create<DesignStore>((set) => ({
     set((state) => ({
       messages: state.messages.map((m) =>
         m.id === id
-          ? { ...m, images: [...(m.images || []), imageBase64] }
+          ? { 
+              ...m, 
+              images: [...(m.images || []), imageBase64],
+              // Also add to segments
+              segments: [...(m.segments || []), { type: 'image' as const, imageUrl: imageBase64 }],
+            }
+          : m
+      ),
+    })),
+  addSegmentToMessage: (id, segment, segmentedUpTo) =>
+    set((state) => ({
+      messages: state.messages.map((m) =>
+        m.id === id
+          ? { 
+              ...m, 
+              segments: [...(m.segments || []), segment],
+              // Update segmentedUpTo if provided (tracks position in content that's been segmented)
+              ...(segmentedUpTo !== undefined ? { segmentedUpTo } : {}),
+            }
           : m
       ),
     })),
@@ -270,5 +338,9 @@ export const useDesignStore = create<DesignStore>((set) => ({
   // Thread
   threadId: null,
   setThreadId: (id) => set({ threadId: id }),
+
+  // Run tracking (for cancellation)
+  currentRunId: null,
+  setCurrentRunId: (id) => set({ currentRunId: id }),
 }));
 

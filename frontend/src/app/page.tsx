@@ -6,7 +6,6 @@ import {
   Sparkles,
   Upload,
   MessageSquare,
-  Images,
   ArrowRight,
   Zap,
   Palette,
@@ -16,9 +15,10 @@ import {
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { UploadZone } from '@/components/upload-zone';
 import { GenerationChat } from '@/components/generation-chat';
-import { DesignGallery } from '@/components/design-gallery';
 import { useDesignStore } from '@/lib/store';
 
 // Animated background particles
@@ -119,7 +119,7 @@ export default function Home() {
                 <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center">
                   <Sparkles className="w-5 h-5 text-white" />
                 </div>
-                <span className="text-xl font-bold">DesignForge</span>
+                <span className="text-xl font-bold">Mimicry</span>
                 <Badge variant="secondary" className="ml-2">AI</Badge>
               </motion.div>
             </header>
@@ -241,7 +241,7 @@ export default function Home() {
                   <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center">
                     <Sparkles className="w-4 h-4 text-white" />
                   </div>
-                  <span className="font-semibold">DesignForge</span>
+                  <span className="font-semibold">Mimicry</span>
                 </motion.div>
 
                 {/* Navigation Tabs */}
@@ -264,15 +264,6 @@ export default function Home() {
                       <MessageSquare className="w-4 h-4" />
                       <span className="hidden sm:inline">Studio</span>
                     </TabsTrigger>
-                    <TabsTrigger value="gallery" className="gap-2">
-                      <Images className="w-4 h-4" />
-                      <span className="hidden sm:inline">Gallery</span>
-                      {generatedDesigns.length > 0 && (
-                        <Badge variant="secondary" className="ml-1 h-5 w-5 p-0 justify-center">
-                          {generatedDesigns.length}
-                        </Badge>
-                      )}
-                    </TabsTrigger>
                   </TabsList>
                 </Tabs>
 
@@ -293,12 +284,6 @@ export default function Home() {
                   >
                     Generate
                   </span>
-                  <ChevronRight className="w-4 h-4" />
-                  <span
-                    className={activeTab === 'gallery' ? 'text-primary' : ''}
-                  >
-                    Export
-                  </span>
                 </motion.div>
               </div>
             </header>
@@ -306,7 +291,7 @@ export default function Home() {
             {/* Main Content */}
             <main className="flex-1 overflow-hidden">
               <Tabs value={activeTab} className="h-full">
-                <TabsContent value="upload" className="h-full m-0 p-6">
+                <TabsContent value="upload" className="h-full m-0 p-6 overflow-auto">
                   <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -319,16 +304,47 @@ export default function Home() {
                         Our AI will analyze them to understand your visual style.
                       </p>
                     </div>
+
+                    {/* Brand Info Section (Mockup) */}
+                    <div className="mb-8 p-6 rounded-xl border border-border bg-card/50">
+                      <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                        <Palette className="w-5 h-5 text-primary" />
+                        Brand Information
+                      </h2>
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label htmlFor="brand-name">Brand Name</Label>
+                          <Input 
+                            id="brand-name" 
+                            placeholder="e.g., Acme Inc." 
+                            className="bg-background"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="brand-industry">Industry</Label>
+                          <Input 
+                            id="brand-industry" 
+                            placeholder="e.g., Technology, Healthcare" 
+                            className="bg-background"
+                          />
+                        </div>
+                        <div className="space-y-2 sm:col-span-2">
+                          <Label htmlFor="brand-description">Brand Description <span className="text-muted-foreground text-xs">(optional)</span></Label>
+                          <Input 
+                            id="brand-description" 
+                            placeholder="Brief description of your brand's style and personality..." 
+                            className="bg-background"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
                     <UploadZone onAnalyzeComplete={() => setActiveTab('studio')} />
                   </motion.div>
                 </TabsContent>
 
                 <TabsContent value="studio" className="h-full m-0">
                   <GenerationChat />
-                </TabsContent>
-
-                <TabsContent value="gallery" className="h-full m-0">
-                  <DesignGallery />
                 </TabsContent>
               </Tabs>
             </main>

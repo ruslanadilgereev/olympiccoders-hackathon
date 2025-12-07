@@ -85,10 +85,10 @@ export function UploadZone({ onAnalyzeComplete }: UploadZoneProps) {
       let preview: string | undefined;
 
       if (isImage) {
-        // Compress images to reduce token usage (max 1024px, 70% quality)
+        // Process images with high quality for accurate DNA extraction (2048px, 95% quality)
         base64 = await compressImage(file);
         preview = `data:image/jpeg;base64,${base64}`;
-        console.log(`Image compressed: ${file.name}, ~${Math.round(base64.length / 1024)}KB`);
+        console.log(`Image processed: ${file.name}, ~${Math.round(base64.length / 1024)}KB`);
       } else {
         // For non-images, read normally
         const result = await new Promise<string>((resolve, reject) => {

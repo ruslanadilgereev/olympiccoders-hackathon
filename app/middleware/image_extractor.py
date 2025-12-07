@@ -7,22 +7,24 @@ import base64
 from typing import Any
 from langchain_core.messages import HumanMessage
 
-from app.tools.tool_state import set_image_in_state, clear_image_state
+from app.tools.tool_state import set_images_in_state, clear_image_state, get_image_from_state
 
 
-def extract_image_from_messages(messages: list) -> tuple[bytes | None, str | None]:
+def extract_all_images_from_messages(messages: list) -> list[tuple[bytes, str]]:
     """
-    Extract image data from the last HumanMessage if present.
+    Extract ALL image data from the last HumanMessage.
     
     Supports:
     - Base64 data URLs (data:image/jpeg;base64,...)
     - Multimodal content blocks
     
     Returns:
-        Tuple of (image_bytes, mime_type) or (None, None)
+        List of tuples: [(image_bytes, mime_type), ...]
     """
+    images = []
+    
     if not messages:
-        return None, None
+        return images
     
     # Find the last HumanMessage
     last_human_msg = None
@@ -38,7 +40,7 @@ def extract_image_from_messages(messages: list) -> tuple[bytes | None, str | Non
             break
     
     if not last_human_msg:
-        return None, None
+        return images
     
     # Get content
     if isinstance(last_human_msg, dict):
@@ -47,7 +49,7 @@ def extract_image_from_messages(messages: list) -> tuple[bytes | None, str | Non
         content = getattr(last_human_msg, 'content', None)
     
     if not content:
-        return None, None
+        return images
     
     # Handle multimodal content (list of parts)
     if isinstance(content, list):
@@ -62,7 +64,9 @@ def extract_image_from_messages(messages: list) -> tuple[bytes | None, str | Non
                         continue
                     
                     if url.startswith("data:"):
-                        return _parse_data_url(url)
+                        result = _parse_data_url(url)
+                        if result[0] is not None:
+                            images.append(result)
                 
                 # Check for image type (LangGraph Studio format)
                 elif part.get("type") == "image":
@@ -72,11 +76,13 @@ def extract_image_from_messages(messages: list) -> tuple[bytes | None, str | Non
                     if data:
                         if isinstance(data, str):
                             try:
-                                return base64.b64decode(data), mime_type
+                                images.append((base64.b64decode(data), mime_type))
+                                continue
                             except Exception as e:
                                 print(f"  [WARNING] Failed to decode base64: {e}")
                         elif isinstance(data, bytes):
-                            return data, mime_type
+                            images.append((data, mime_type))
+                            continue
                     
                     # Anthropic format
                     source = part.get("source", {})
@@ -84,8 +90,26 @@ def extract_image_from_messages(messages: list) -> tuple[bytes | None, str | Non
                         data = source.get("data", "")
                         media_type = source.get("media_type", "image/jpeg")
                         if data:
-                            return base64.b64decode(data), media_type
+                            try:
+                                images.append((base64.b64decode(data), media_type))
+                            except Exception as e:
+                                print(f"  [WARNING] Failed to decode base64: {e}")
     
+    return images
+
+
+def extract_image_from_messages(messages: list) -> tuple[bytes | None, str | None]:
+    """
+    Extract first image data from the last HumanMessage if present.
+    
+    DEPRECATED: Use extract_all_images_from_messages for multi-image support.
+    
+    Returns:
+        Tuple of (image_bytes, mime_type) or (None, None)
+    """
+    images = extract_all_images_from_messages(messages)
+    if images:
+        return images[0]
     return None, None
 
 
@@ -119,19 +143,20 @@ def extract_images_from_state(state: dict) -> dict:
     Extract images from state messages and store in tool state.
     
     This function should be called before the agent processes messages.
+    Now supports multiple images!
     """
     messages = state.get("messages", [])
     
-    # Extract image from messages
-    image_data, image_mime = extract_image_from_messages(messages)
+    # Extract ALL images from messages
+    images = extract_all_images_from_messages(messages)
     
-    if image_data:
-        print(f"  📷 [IMAGE EXTRACTOR] Found image: {len(image_data)} bytes, mime: {image_mime}")
-        set_image_in_state(image_data, image_mime)
+    if images:
+        print(f"  📷 [IMAGE EXTRACTOR] Found {len(images)} image(s):")
+        for i, (img_data, img_mime) in enumerate(images):
+            print(f"      Image {i+1}: {len(img_data)} bytes, mime: {img_mime}")
+        set_images_in_state(images)
     else:
-        print(f"  ⚠️ [IMAGE EXTRACTOR] No image found in messages")
+        print(f"  ⚠️ [IMAGE EXTRACTOR] No images found in messages")
         clear_image_state()
     
     return state
-
-

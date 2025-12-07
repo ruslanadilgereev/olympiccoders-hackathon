@@ -20,6 +20,8 @@ from app.tools.style_analyzer import (
     get_style_context,
     list_analyzed_styles,
     compare_styles,
+    analyze_business_dna,
+    get_current_business_dna,
 )
 from app.tools.knowledge_store import (
     store_knowledge,
@@ -37,6 +39,32 @@ from app.tools.code_generator import (
     image_to_code,
     modify_code,
     get_generated_code,
+    generate_screen,
+)
+from app.tools.screen_manager import (
+    list_screens,
+    load_screen,
+    update_screen,
+    create_screen,
+    delete_screen,
+    create_screen_variant,
+    list_screen_variants,
+    compare_screen_variants,
+)
+from app.tools.flow_generator import (
+    generate_flow_spec,
+    generate_flow_component,
+    get_flow_template,
+    list_flow_templates,
+    generate_workflow_plan,
+    update_workflow_step,
+)
+from app.tools.design_tokens import (
+    get_design_tokens,
+    update_design_tokens,
+    extract_tokens_from_analysis,
+    get_tailwind_config_from_tokens,
+    reset_design_tokens,
 )
 
 
@@ -44,84 +72,14 @@ from app.tools.code_generator import (
 _checkpointer = MemorySaver()
 
 # Gemini model to use
-GEMINI_MODEL = "gemini-3-pro-preview"
+GEMINI_MODEL = "gemini-2.5-pro"
 
 # System prompt for the Design Automation Agent
-DESIGN_AGENT_SYSTEM_PROMPT = """You are DesignForge AI, an AI that converts UI screenshots to React code.
+DESIGN_AGENT_SYSTEM_PROMPT = """You are Mimicry AI, a design-to-code assistant that creates pixel-perfect React + Tailwind components.
 
-## RULE #1 - WHEN USER UPLOADS AN IMAGE
+When users upload reference images, first analyze them with analyze_business_dna() to extract colors, typography, and layout patterns. Then generate screens that match that exact style.
 
-**When a user uploads an image and asks to convert it to code, call the `image_to_code` tool.**
-
-The image has already been extracted and stored - you just need to call the tool.
-Do NOT ask questions. Do NOT explain what you're going to do. Just call the tool.
-
-Example:
-- User uploads image + "Convert this to React code"
-- You call: image_to_code(component_name="GeneratedUI", additional_instructions="Convert to React code")
-
-## CRITICAL: NEVER OUTPUT RAW CODE
-
-**NEVER paste or output the generated code in your response!**
-
-The code is automatically saved to the sandbox. After calling `image_to_code` or `modify_code`:
-1. Tell the user the code was generated successfully
-2. Share the preview URL from the tool result
-3. DO NOT output the code itself - it's already in the sandbox!
-
-Example response after code generation:
-"✅ I've converted your UI to React + Tailwind code! 
-View the live preview: http://localhost:3000/preview?id=xxx"
-
-## When There's NO Image
-
-If the user sends text without an image:
-- If they want a NEW design image created → use `generate_design_image`
-- If they want MULTIPLE design images created → use `generate_multiple_design_images` (runs in parallel, much faster!)
-- If they want to modify existing code → use `modify_code`
-- If they want brand info from a URL → use `extract_brand_identity`
-- If they have questions → answer them
-
-## CRITICAL: MODIFYING EXISTING CODE
-
-**When the user wants to modify code (e.g., "make button red", "change color", "update style"):**
-
-**You have access to ALL previous messages in the conversation, including tool outputs!**
-
-1. **Look at the conversation history** - find the most recent tool message from `image_to_code` or `modify_code`
-2. **Extract the `code` field** from that tool output - it contains the full React code
-3. **Call `modify_code`** with:
-   - `current_code`: The code from the previous tool output
-   - `modification_request`: What the user wants to change
-
-**Example workflow:**
-- User: "Convert this image to code" → You call `image_to_code()` → Tool returns `{code: "...", code_id: "..."}`
-- User: "Make button red" → You see the previous tool output has `code` field → You call `modify_code(current_code="...", modification_request="Make button red")`
-
-**IMPORTANT**: 
-- The `modify_code` tool REQUIRES the `current_code` parameter
-- You MUST extract it from previous tool message outputs in the conversation
-- The code is in the `code` field of tool outputs from `image_to_code` or `modify_code`
-- You can see all previous messages - use them!
-
-## Your Tools
-
-1. `image_to_code` - Converts uploaded screenshots to React + Tailwind code (auto-saves to sandbox)
-2. `modify_code` - Modifies existing code based on user requests (auto-saves to sandbox)
-3. `generate_design_image` - Creates a single NEW design image from a description
-4. `generate_multiple_design_images` - Creates MULTIPLE design images in parallel (use when user asks for 2+ images)
-5. `extract_brand_identity` - Gets brand info from URLs
-6. `analyze_design_style` - Extracts style info from designs
-
-## Response Style
-
-- Be brief and action-oriented
-- Don't ask unnecessary questions
-- Just do what needs to be done
-- Share the preview URL after generating code
-- NEVER paste raw code - it's in the sandbox!
-
-You are here to help designers create beautiful, consistent designs quickly!"""
+Think step-by-step and explain what you're doing as you work."""
 
 
 class AgentState(TypedDict):
@@ -153,6 +111,7 @@ def create_agent_graph():
         # Code generation tools (uses image from state)
         image_to_code,
         modify_code,
+        generate_screen,
         get_generated_code,
         # Image generation tools
         generate_design_image,
@@ -164,6 +123,9 @@ def create_agent_graph():
         get_style_context,
         list_analyzed_styles,
         compare_styles,
+        # Business DNA tools (multi-image style extraction)
+        analyze_business_dna,
+        get_current_business_dna,
         # Knowledge store tools
         store_knowledge,
         retrieve_knowledge,
@@ -174,6 +136,29 @@ def create_agent_graph():
         scrape_brand_from_url,
         crawl_website_for_brand,
         extract_brand_identity,
+        # Screen management tools (Cursor-like)
+        list_screens,
+        load_screen,
+        update_screen,
+        create_screen,
+        delete_screen,
+        create_screen_variant,
+        list_screen_variants,
+        compare_screen_variants,
+        # Flow/Process diagram tools
+        generate_flow_spec,
+        generate_flow_component,
+        get_flow_template,
+        list_flow_templates,
+        # Workflow planning tools (for multi-screen generation)
+        generate_workflow_plan,
+        update_workflow_step,
+        # Design Tokens tools
+        get_design_tokens,
+        update_design_tokens,
+        extract_tokens_from_analysis,
+        get_tailwind_config_from_tokens,
+        reset_design_tokens,
     ]
     
     # Create the base react agent

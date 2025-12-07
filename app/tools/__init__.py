@@ -28,6 +28,32 @@ from app.tools.code_generator import (
     image_to_code,
     modify_code,
     get_generated_code,
+    generate_screen,
+)
+from app.tools.screen_manager import (
+    list_screens,
+    load_screen,
+    update_screen,
+    create_screen,
+    delete_screen,
+    create_screen_variant,
+    list_screen_variants,
+    compare_screen_variants,
+)
+from app.tools.flow_generator import (
+    generate_flow_spec,
+    generate_flow_component,
+    get_flow_template,
+    list_flow_templates,
+    generate_workflow_plan,
+    update_workflow_step,
+)
+from app.tools.design_tokens import (
+    get_design_tokens,
+    update_design_tokens,
+    extract_tokens_from_analysis,
+    get_tailwind_config_from_tokens,
+    reset_design_tokens,
 )
 
 __all__ = [
@@ -55,5 +81,29 @@ __all__ = [
     "image_to_code",
     "modify_code",
     "get_generated_code",
+    "generate_screen",
+    # Screen management (Cursor-like)
+    "list_screens",
+    "load_screen",
+    "update_screen",
+    "create_screen",
+    "delete_screen",
+    "create_screen_variant",
+    "list_screen_variants",
+    "compare_screen_variants",
+    # Flow/Process diagrams
+    "generate_flow_spec",
+    "generate_flow_component",
+    "get_flow_template",
+    "list_flow_templates",
+    # Workflow planning (multi-screen progress)
+    "generate_workflow_plan",
+    "update_workflow_step",
+    # Design Tokens (Design DNA)
+    "get_design_tokens",
+    "update_design_tokens",
+    "extract_tokens_from_analysis",
+    "get_tailwind_config_from_tokens",
+    "reset_design_tokens",
 ]
 

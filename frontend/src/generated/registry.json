@@ -1,412 +1,48 @@
 {
   "components": [
     {
-      "id": "comp_1764985080068_m17liv",
-      "name": "TestComponent",
-      "filename": "TestComponent.tsx",
-      "createdAt": "2025-12-06T01:38:00.072Z",
-      "prompt": "Test component"
+      "id": "comp_1765149873665_79p5",
+      "name": "ResultsDashboardScreen",
+      "filename": "ResultsDashboardScreen.tsx",
+      "createdAt": "2025-12-07T23:24:33.669Z",
+      "prompt": "Create the final \"Results Dashboard\" screen. This screen should present the analysis results. Maintain the dark theme and the standard header and stepper navigation. The active step in the stepper sho"
     },
     {
-      "id": "comp_1764990430155_u9u82a",
-      "name": "TransformationProjectDashboard",
-      "filename": "TransformationProjectDashboard.tsx",
-      "createdAt": "2025-12-06T03:07:10.157Z",
-      "prompt": "Use a dark theme (black/dark gray background) as shown. Replicate the top navigation bar, the project header with the 'NBH' logo placeholder, the tabbed navigation ('Project Scope', 'History Analysis', etc.), and the main data table with progress bars and action buttons. Ensure the layout is responsive."
+      "id": "comp_1765149814835_zdfp",
+      "name": "HistoryAnalysisCompleteScreen",
+      "filename": "HistoryAnalysisCompleteScreen.tsx",
+      "createdAt": "2025-12-07T23:23:34.842Z",
+      "prompt": "Create the \"History Analysis (Complete)\" screen. This screen is a variation of the previous one. The layout, header, and stepper (still on \"HISTORY ANALYSIS\") remain the same. However, the table conte"
     },
     {
-      "id": "comp_1764990789425_wiipcq",
-      "name": "TransformationProjectDashboard",
-      "filename": "TransformationProjectDashboard.tsx",
-      "createdAt": "2025-12-06T03:13:09.434Z",
-      "prompt": "Use a dark theme with black/dark gray background. Replicate the 'S/4 Transformation Project' header, the tab navigation bar with 'History Analysis' active, and the data table with progress bars (cyan/teal color). Include the blue 'OPEN JIVS IMP DEPLOYMENT' button at the bottom right."
+      "id": "comp_1765149705131_bspn",
+      "name": "HistoryAnalysisPendingScreen",
+      "filename": "HistoryAnalysisPendingScreen.tsx",
+      "createdAt": "2025-12-07T23:21:45.135Z",
+      "prompt": "Create the \"History Analysis (Pending)\" screen. This screen should maintain the established dark theme and layout. The stepper navigation should have \"HISTORY ANALYSIS\" as the active step. The main co"
     },
     {
-      "id": "comp_1764991043575_s9sb4e",
-      "name": "TransformationProjectDashboard",
-      "filename": "TransformationProjectDashboard.tsx",
-      "createdAt": "2025-12-06T03:17:23.590Z",
-      "prompt": "Use a dark theme as shown in the screenshot. Ensure the table layout is responsive. The design includes a top navigation bar, a project header with tabs, and a data table with progress bars and action buttons."
+      "id": "comp_1765149595763_22qb",
+      "name": "ImplementationScreen",
+      "filename": "ImplementationScreen.tsx",
+      "createdAt": "2025-12-07T23:19:55.775Z",
+      "prompt": "Create the \"Implementation\" screen. This screen should follow the same dark theme and layout as the previous screen. The header and stepper navigation should be identical, but with \"IMPLEMENTATION\" as"
     },
     {
-      "id": "comp_1764991125761_s04xek",
-      "name": "TransformationProjectUI",
-      "filename": "TransformationProjectUI.tsx",
-      "createdAt": "2025-12-06T03:18:45.764Z",
-      "prompt": "Use a dark theme as shown in the screenshot. The UI includes a top navigation bar, a project header, a tabbed navigation menu (Project Scope, History Analysis, etc.), and a data table for 'History Analysis' with progress bars and action buttons. Match the dark background colors (#0f1115 or similar) and neon blue accents."
+      "id": "comp_1765149530081_wtaz",
+      "name": "JivsImpHarness",
+      "filename": "JivsImpHarness.tsx",
+      "createdAt": "2025-12-07T23:18:50.083Z",
+      "prompt": "Create the \"JIVS IMP Deployment\" screen. This screen should have a dark theme, matching the provided images. It needs a header with the project title \"S/4 Transformation Project\" and a stepper navigat"
     },
     {
-      "id": "comp_1764991288669_m0nj5q",
-      "name": "Modified_4",
-      "filename": "Modified_4.tsx",
-      "createdAt": "2025-12-06T03:21:28.672Z",
-      "prompt": "Change the 'Open JIVS IMP Deployment' button color from blue to red. Update the background, hover state, and shadow to use red colors."
-    },
-    {
-      "id": "comp_1764991854494_t9puk3",
-      "name": "HistoryAnalysisDashboard",
-      "filename": "HistoryAnalysisDashboard.tsx",
-      "createdAt": "2025-12-06T03:30:54.497Z",
-      "prompt": ""
-    },
-    {
-      "id": "comp_1764992211525_6euewp",
-      "name": "TransformationProjectDashboard",
-      "filename": "TransformationProjectDashboard.tsx",
-      "createdAt": "2025-12-06T03:36:51.536Z",
-      "prompt": "Use a dark theme as shown in the screenshot. Pay attention to the navigation tabs, progress bars in the table, and the overall layout structure. The font should be clean and sans-serif."
-    },
-    {
-      "id": "comp_1764992329197_9s7xsl",
-      "name": "TransformationProject",
-      "filename": "TransformationProject.tsx",
-      "createdAt": "2025-12-06T03:38:49.206Z",
-      "prompt": "Use a dark theme as shown in the screenshot. The UI includes a top navigation bar, a project header, a tabbed navigation for project phases (Project Scope, History Analysis, etc.), and a data table for 'History Analysis' with progress bars and action buttons. Ensure the colors match the dark aesthetic (black/dark grey backgrounds, white text, blue accents)."
-    },
-    {
-      "id": "comp_1764992490453_titeal",
-      "name": "TransformationProject",
-      "filename": "TransformationProject.tsx",
-      "createdAt": "2025-12-06T03:41:30.461Z",
-      "prompt": "Convert this dark themed dashboard UI to React + Tailwind code. It features a project header, a tabbed navigation bar (Project Scope, History Analysis, etc.), and a 'History Analysis' section with a table showing System, Status with progress bars, Performance details, and Actions. The table has rows for PO1, PO2, PO3. There is a blue 'OPEN JIVS IMP DEPLOYMENT' button at the bottom right."
-    },
-    {
-      "id": "comp_1764992682738_h72owl",
-      "name": "ProjectDashboard",
-      "filename": "ProjectDashboard.tsx",
-      "createdAt": "2025-12-06T03:44:42.745Z",
-      "prompt": "Dark theme, responsive table, progress bars, tab navigation."
-    },
-    {
-      "id": "comp_1765011257057_ng240d",
-      "name": "ProjectScopeDashboard",
-      "filename": "ProjectScopeDashboard.tsx",
-      "createdAt": "2025-12-06T08:54:17.058Z",
-      "prompt": "Convert this dashboard to React code. Improve the layout, spacing, and visual hierarchy. Make it look modern and professional with a dark theme as shown. Ensure responsive grid alignment for the cards."
-    },
-    {
-      "id": "comp_1765022915981_agn04g",
-      "name": "ProjectScopeDashboard",
-      "filename": "ProjectScopeDashboard.tsx",
-      "createdAt": "2025-12-06T12:08:35.983Z",
-      "prompt": "Improve the layout and spacing of the elements based on the screenshot."
-    },
-    {
-      "id": "comp_1765023405959_zb32mo",
-      "name": "TransformationDashboard",
-      "filename": "TransformationDashboard.tsx",
-      "createdAt": "2025-12-06T12:16:45.960Z",
-      "prompt": "Convert this dashboard to React code. Specifically, for the card labeled 'P01' (Object 1), change its border to a green color as requested. The rest of the design should match the screenshot (dark theme, S/4 Transformation Project dashboard)."
-    },
-    {
-      "id": "comp_1765023640236_kkvyog",
-      "name": "ProjectScopeDashboard",
-      "filename": "ProjectScopeDashboard.tsx",
-      "createdAt": "2025-12-06T12:20:40.237Z",
-      "prompt": "Change the border color to green (tausch die rahmenfabre in grün). Replicate the dark theme dashboard UI exactly as shown but use green for the borders."
-    },
-    {
-      "id": "comp_1765023963460_a3ae9k",
-      "name": "Modified_3",
-      "filename": "Modified_3.tsx",
-      "createdAt": "2025-12-06T12:26:03.461Z",
-      "prompt": "Change border color to green for the Available Systems cards and the View Scope/Collaborators buttons to match the theme."
-    },
-    {
-      "id": "comp_1765024279584_f88db8",
-      "name": "ProjectScopeDashboard",
-      "filename": "ProjectScopeDashboard.tsx",
-      "createdAt": "2025-12-06T12:31:19.585Z",
-      "prompt": "Replicate the UI exactly, but make all borders green (change all frames/borders to green)."
-    },
-    {
-      "id": "comp_1765024334587_pybs1p",
-      "name": "ProjectScopeDashboard",
-      "filename": "ProjectScopeDashboard.tsx",
-      "createdAt": "2025-12-06T12:32:14.589Z",
-      "prompt": "Replicate the dark theme UI exactly. Make all borders green as requested."
-    },
-    {
-      "id": "comp_1765024466528_1trwwx",
-      "name": "ProjectScopeUI",
-      "filename": "ProjectScopeUI.tsx",
-      "createdAt": "2025-12-06T12:34:26.529Z",
-      "prompt": "Replicate this UI, but make all borders green as requested."
-    },
-    {
-      "id": "comp_1765025119034_iqd56d",
-      "name": "ProjectScopeUI",
-      "filename": "ProjectScopeUI.tsx",
-      "createdAt": "2025-12-06T12:45:19.036Z",
-      "prompt": "Make all borders green as requested ('mach alle rahmen grün'). Replicate the dark theme dashboard for 'S/4 Transformation Project' with 'In Scope', 'Available Systems', and 'Add New Systems' sections."
-    },
-    {
-      "id": "comp_1765025231508_ub5znu",
-      "name": "Dashboard",
-      "filename": "Dashboard.tsx",
-      "createdAt": "2025-12-06T12:47:11.509Z",
-      "prompt": "Make all borders green as requested by the user ('mach alle rahmen grün'). Replicate the dark theme dashboard UI exactly but ensure all borders/frames are green."
-    },
-    {
-      "id": "comp_1765025445604_du1ugc",
-      "name": "ProjectScopeDashboard",
-      "filename": "ProjectScopeDashboard.tsx",
-      "createdAt": "2025-12-06T12:50:45.605Z",
-      "prompt": "Convert this UI to React code. Important: Make all borders and frames green as requested ('alle rahmen grün')."
-    },
-    {
-      "id": "comp_1765026044254_vfrg85",
-      "name": "ProjectDashboard",
-      "filename": "ProjectDashboard.tsx",
-      "createdAt": "2025-12-06T13:00:44.256Z",
-      "prompt": "Replicate the dark dashboard UI precisely. The user requested 'mac halle rahmen grün' (likely 'mach alle rahmen grün' meaning 'make all frames green'). Please apply a green border to the main cards or sections to satisfy this request while keeping the rest of the dark theme intact."
-    },
-    {
-      "id": "comp_1765026420980_6c7k60",
-      "name": "ProjectScopeUI",
-      "filename": "ProjectScopeUI.tsx",
-      "createdAt": "2025-12-06T13:07:00.982Z",
-      "prompt": "Convert the UI to React code. Important: Make all borders/frames green as requested by the user (\"mach alle rahmen grün\"). Ensure the dark theme is preserved but with green borders for cards, inputs, and sections."
-    },
-    {
-      "id": "comp_1765026616771_g36csn",
-      "name": "ProjectScopeUI",
-      "filename": "ProjectScopeUI.tsx",
-      "createdAt": "2025-12-06T13:10:16.773Z",
-      "prompt": "Convert this UI to React code. Important: Make all borders/frames green as requested by the user ('mach alle rahmen grün')."
-    },
-    {
-      "id": "comp_1765026896161_5rnkts",
-      "name": "ProjectScopeDashboard",
-      "filename": "ProjectScopeDashboard.tsx",
-      "createdAt": "2025-12-06T13:14:56.162Z",
-      "prompt": "Replicate this dashboard exactly, but make all borders (frames) green as requested (\"mach alle rahmen grün\"). This includes card borders, input field borders, and button borders. The theme is dark."
-    },
-    {
-      "id": "comp_1765027363603_nkbvfb",
-      "name": "ProjectScopeDashboard",
-      "filename": "ProjectScopeDashboard.tsx",
-      "createdAt": "2025-12-06T13:22:43.605Z",
-      "prompt": "make all borders green"
-    },
-    {
-      "id": "comp_1765028600434_91cvcg",
-      "name": "ProjectScopeUI",
-      "filename": "ProjectScopeUI.tsx",
-      "createdAt": "2025-12-06T13:43:20.435Z",
-      "prompt": "alle rahmen grün (Make all borders/frames green)"
-    },
-    {
-      "id": "comp_1765028603229_snd87p",
-      "name": "Generated_1765028603223",
-      "filename": "Generated_1765028603223.tsx",
-      "createdAt": "2025-12-06T13:43:23.231Z",
-      "prompt": "alle rahmen grün"
-    },
-    {
-      "id": "comp_1765028603261_vs0qqa",
-      "name": "Generated_1765028603255",
-      "filename": "Generated_1765028603255.tsx",
-      "createdAt": "2025-12-06T13:43:23.263Z",
-      "prompt": "alle rahmen grün"
-    },
-    {
-      "id": "comp_1765028861175_htg0on",
-      "name": "ProjectDashboard",
-      "filename": "ProjectDashboard.tsx",
-      "createdAt": "2025-12-06T13:47:41.177Z",
-      "prompt": "Make all borders/frames green as requested ('alle rahmen grün')."
-    },
-    {
-      "id": "comp_1765028865035_aal0gk",
-      "name": "Generated_1765028865031",
-      "filename": "Generated_1765028865031.tsx",
-      "createdAt": "2025-12-06T13:47:45.036Z",
-      "prompt": "alle rahmen grün"
-    },
-    {
-      "id": "comp_1765029044681_c0e1pp",
-      "name": "Generated_1765029044676",
-      "filename": "Generated_1765029044676.tsx",
-      "createdAt": "2025-12-06T13:50:44.694Z",
-      "prompt": "tauschen die seiten von den objekten unter dem header bar , also Add New Systems nach linnks und alles was gerade links ist dann rechts"
-    },
-    {
-      "id": "comp_1765029158872_mlqpf0",
-      "name": "Modified_7",
-      "filename": "Modified_7.tsx",
-      "createdAt": "2025-12-06T13:52:38.874Z",
-      "prompt": "Swap the positions of the two main columns. Move the 'Add New Systems' section to the left (make it the first child in the grid), and move the 'In Scope'/'Available Systems' lists to the right (make it the second child in the grid). Keep their respective column spans (5 for Add New Systems, 7 for lists)."
-    },
-    {
-      "id": "comp_1765033408038_3d9gfl",
-      "name": "UserTable",
-      "filename": "UserTable.tsx",
-      "createdAt": "2025-12-06T15:03:28.043Z",
-      "prompt": "Convert this UI screenshot to React + Tailwind code"
-    },
-    {
-      "id": "comp_1765033410931_zbyryz",
-      "name": "Generated_1765033410929",
-      "filename": "Generated_1765033410929.tsx",
-      "createdAt": "2025-12-06T15:03:30.934Z",
-      "prompt": "Convert this UI screenshot to React + Tailwind code"
-    },
-    {
-      "id": "comp_1765033450776_wopnmz",
-      "name": "Generated_1765033450765",
-      "filename": "Generated_1765033450765.tsx",
-      "createdAt": "2025-12-06T15:04:10.778Z",
-      "prompt": "can u swap the status and role order, first status then role"
-    },
-    {
-      "id": "comp_1765033506482_9rui68",
-      "name": "Modified_1",
-      "filename": "Modified_1.tsx",
-      "createdAt": "2025-12-06T15:05:06.489Z",
-      "prompt": "Swap the positions of the 'Role' and 'Status' columns. The order should be Name, Email, Status, then Role. Make sure to update both the header row and the data rows."
-    },
-    {
-      "id": "comp_1765035101729_hfd87h",
-      "name": "LoginForm",
-      "filename": "LoginForm.tsx",
-      "createdAt": "2025-12-06T15:31:41.732Z",
-      "prompt": "Wandle dieses Bild in React + Tailwind Code um"
-    },
-    {
-      "id": "comp_1765035193956_m59lbb",
-      "name": "Modified_1",
-      "filename": "Modified_1.tsx",
-      "createdAt": "2025-12-06T15:33:13.961Z",
-      "prompt": "Mache den Login-Button rot"
-    },
-    {
-      "id": "comp_1765035300273_p8xs35",
-      "name": "LoginForm",
-      "filename": "LoginForm.tsx",
-      "createdAt": "2025-12-06T15:35:00.276Z",
-      "prompt": "Wandle dieses Bild in React + Tailwind Code um"
-    },
-    {
-      "id": "comp_1765035373916_l74zg0",
-      "name": "Modified_1",
-      "filename": "Modified_1.tsx",
-      "createdAt": "2025-12-06T15:36:13.918Z",
-      "prompt": "Mache den Login-Button rot"
-    },
-    {
-      "id": "comp_1765035476513_nkuzi7",
-      "name": "LoginForm",
-      "filename": "LoginForm.tsx",
-      "createdAt": "2025-12-06T15:37:56.519Z",
-      "prompt": "Wandle dieses Bild in React + Tailwind Code um"
-    },
-    {
-      "id": "comp_1765035553123_ijsoh6",
-      "name": "Modified_1",
-      "filename": "Modified_1.tsx",
-      "createdAt": "2025-12-06T15:39:13.126Z",
-      "prompt": "Mache den Login-Button rot"
-    },
-    {
-      "id": "comp_1765035815692_jupqng",
-      "name": "LoginForm",
-      "filename": "LoginForm.tsx",
-      "createdAt": "2025-12-06T15:43:35.694Z",
-      "prompt": "Use modern minimalist design, match colors from image"
-    },
-    {
-      "id": "comp_1765035890936_0wijj9",
-      "name": "Modified_1",
-      "filename": "Modified_1.tsx",
-      "createdAt": "2025-12-06T15:44:50.941Z",
-      "prompt": "Make the login button red. Change its background color to red-600, hover to red-700, and update the shadow color to match the red theme."
-    },
-    {
-      "id": "comp_1765036102155_1zso1u",
-      "name": "LoginForm",
-      "filename": "LoginForm.tsx",
-      "createdAt": "2025-12-06T15:48:22.158Z",
-      "prompt": "Wandle dieses Bild in React + Tailwind Code um"
-    },
-    {
-      "id": "comp_1765036163597_jdswwe",
-      "name": "Modified_1",
-      "filename": "Modified_1.tsx",
-      "createdAt": "2025-12-06T15:49:23.606Z",
-      "prompt": "Mache den Login-Button rot"
-    },
-    {
-      "id": "comp_1765036374289_flxysg",
-      "name": "LoginForm",
-      "filename": "LoginForm.tsx",
-      "createdAt": "2025-12-06T15:52:54.297Z",
-      "prompt": "Modern login form with email and password fields, blue primary button, white card style"
-    },
-    {
-      "id": "comp_1765036420043_p6h5hm",
-      "name": "Modified_1",
-      "filename": "Modified_1.tsx",
-      "createdAt": "2025-12-06T15:53:40.046Z",
-      "prompt": "Make the login button red"
-    },
-    {
-      "id": "comp_1765036436417_0a6to1",
-      "name": "Modified_0",
-      "filename": "Modified_0.tsx",
-      "createdAt": "2025-12-06T15:53:56.421Z",
-      "prompt": "Make the login button red"
-    },
-    {
-      "id": "comp_1765036576014_juuq62",
-      "name": "Modified_0",
-      "filename": "Modified_0.tsx",
-      "createdAt": "2025-12-06T15:56:16.016Z",
-      "prompt": "Make the login button red"
-    },
-    {
-      "id": "comp_1765037174282_cwy3cm",
-      "name": "OCCLifecycleSimulation",
-      "filename": "OCCLifecycleSimulation.tsx",
-      "createdAt": "2025-12-06T16:06:14.287Z",
-      "prompt": "Create a comprehensive dashboard called 'OCCLifecycleSimulation'.\n1. **Visuals**: Replicate the dark theme, header, and 'Project Scope' layout from the screenshot perfectly.\n2. **Simulation Logic**: Implement a 4-step workflow corresponding to the tabs:\n   - **Step 1 (Project Scope)**: Allow adding systems (like P04) to In Scope. Show a success toast.\n   - **Step 2 (JiVS IMP Deployment)**: When clicking this tab, start a simulated progress bar for 'Azure Provisioning' and 'JiVS Installation'. Show logs. End with 'Environment Ready'.\n   - **Step 3 (Data Transfer)**: Create a view for this (maybe under 'Implementation' tab). Show a list of export items transitioning from Pending -> Success with a log console.\n   - **Step 4 (History Analysis)**: Create a dashboard with a Line Chart (use Recharts) showing data size reduction and a table of 'Run History'.\n3. **State**: Use React state to manage the active tab and the simulation progress of each step.\n4. **Dependencies**: Use `lucide-react` for icons and `recharts` for the analysis chart.\n5. **Language**: Keep UI text in English as per the screenshot, but follow the logic described in the German prompt."
-    },
-    {
-      "id": "comp_1765037183314_ujacrm",
-      "name": "Generated_1765037183304",
-      "filename": "Generated_1765037183304.tsx",
-      "createdAt": "2025-12-06T16:06:23.316Z",
-      "prompt": "OCC Context OCC manages projects that contain one or more systems. Work is performed within a project and against its systems. OCC itself has no direct SAP access. SAP admins use a SAP plugin to export tables/data to an export handling app, which reports transfer status back to OCC. A mediator app provisions the Azure target machine, installs and configures JiVS IMP on a customer-managed machine, and prepares the export handling app for incoming transfers. JiVS IMP (web app on the customer machine) can run analyses and expose results that OCC can surface.\n\n\nYour task:\n\"\"\"\nSimuliere innerhalb eines ausgewählten OCC-Projekts den vollständigen synthetischen Lifecycle in vier klar getrennten Szenen. Alle Daten, Stati, Benachrichtigungen und Zeitverläufe sind vollständig künstlich erzeugt. Es existieren keine echten Integrationen. Die Rollen von Export Handling App, Mediator, JiVS IMP und OCC müssen erkennbar bleiben.\n\n🔹 Szene 1 — Systemzuordnung\n\nStelle die Zuordnung eines oder mehrerer SAP-Systeme zum aktuell ausgewählten OCC-Projekt dar.\n\nDie Systeme erscheinen als neu verknüpft und bereit für weitere Schritte.\n\nZeige synthetische Statusmeldungen oder Bestätigungen (z. B. „System erfolgreich hinzugefügt“).\n\n🔹 Szene 2 — Installation & Umgebungsaufbau\n\nSimuliere den Start des Installationsprozesses für die Zielumgebung.\n\nStelle die Arbeit der Mediator App dar (z. B. Azure-Provisionierung, Installation/Konfiguration von JiVS IMP).\n\nZeige einen simulierten Fortschritt (z. B. 0–100 %) über künstliche Zeitverläufe.\n\nAm Ende: Status „Environment Ready“.\n\n🔹 Szene 3 — Datenübertragung\n\nPräsentiere eine Ansicht der Export Handling App-Transfers.\n\nTransfer-Items starten als Pending und wechseln sequentiell oder gruppenweise zu Success.\n\nZeige synthetische Logs, Meldungen oder Fortschrittsdetails.\n\n🔹 Szene 4 — Analyse & Ergebnisse\n\nSimuliere, dass JiVS IMP Analysen ausgeführt hat und OCC nun die Resultate darstellt.\n\nZeige mindestens einen Trendverlauf über mehrere Zeitpunkte (z. B. Größe, Anzahl Objekte, Komprimierungsgrad).\n\nBaue eine Run-History früherer Analysen ein (mind. 2 Einträge).\n\nErgebnisse sind rein synthetisch, aber konsistent und wiederholbar.\n\"\"\""
-    },
-    {
-      "id": "comp_1765037489354_e227p7",
-      "name": "OCCLifecycleSimulation",
-      "filename": "OCCLifecycleSimulation.tsx",
-      "createdAt": "2025-12-06T16:11:29.357Z",
-      "prompt": "Create a comprehensive dashboard simulating an OCC Project Lifecycle with 4 distinct scenes/tabs based on the visual style of the screenshot (Dark mode, blue accents).\n\nScene 1 (System Assignment): Replicate the screenshot's 'Project Scope' view with 'In Scope', 'Available Systems', and 'Add New Systems' functionality.\nScene 2 (Installation & Setup): Simulate Azure provisioning and JiVS IMP installation with progress bars and terminal logs.\nScene 3 (Data Transfer): Show Export Handling App transfers with items changing from Pending to Success.\nScene 4 (Analysis & Results): Show synthetic analysis charts (trends) and run history.\n\nInclude a navigation bar to switch between these 4 scenes. Use Tailwind CSS. Make sure the simulation is interactive (e.g., clicking 'Start' to see progress)."
-    },
-    {
-      "id": "comp_1765037500477_2ttqz8",
-      "name": "Generated_1765037500476",
-      "filename": "Generated_1765037500476.tsx",
-      "createdAt": "2025-12-06T16:11:40.479Z",
-      "prompt": "OCC Context OCC manages projects that contain one or more systems. Work is performed within a project and against its systems. OCC itself has no direct SAP access. SAP admins use a SAP plugin to export tables/data to an export handling app, which reports transfer status back to OCC. A mediator app provisions the Azure target machine, installs and configures JiVS IMP on a customer-managed machine, and prepares the export handling app for incoming transfers. JiVS IMP (web app on the customer machine) can run analyses and expose results that OCC can surface.\n\n\nYour task:\n\"\"\"\nSimuliere innerhalb eines ausgewählten OCC-Projekts den vollständigen synthetischen Lifecycle in vier klar getrennten Szenen. Alle Daten, Stati, Benachrichtigungen und Zeitverläufe sind vollständig künstlich erzeugt. Es existieren keine echten Integrationen. Die Rollen von Export Handling App, Mediator, JiVS IMP und OCC müssen erkennbar bleiben.\n\n🔹 Szene 1 — Systemzuordnung\n\nStelle die Zuordnung eines oder mehrerer SAP-Systeme zum aktuell ausgewählten OCC-Projekt dar.\n\nDie Systeme erscheinen als neu verknüpft und bereit für weitere Schritte.\n\nZeige synthetische Statusmeldungen oder Bestätigungen (z. B. „System erfolgreich hinzugefügt“).\n\n🔹 Szene 2 — Installation & Umgebungsaufbau\n\nSimuliere den Start des Installationsprozesses für die Zielumgebung.\n\nStelle die Arbeit der Mediator App dar (z. B. Azure-Provisionierung, Installation/Konfiguration von JiVS IMP).\n\nZeige einen simulierten Fortschritt (z. B. 0–100 %) über künstliche Zeitverläufe.\n\nAm Ende: Status „Environment Ready“.\n\n🔹 Szene 3 — Datenübertragung\n\nPräsentiere eine Ansicht der Export Handling App-Transfers.\n\nTransfer-Items starten als Pending und wechseln sequentiell oder gruppenweise zu Success.\n\nZeige synthetische Logs, Meldungen oder Fortschrittsdetails.\n\n🔹 Szene 4 — Analyse & Ergebnisse\n\nSimuliere, dass JiVS IMP Analysen ausgeführt hat und OCC nun die Resultate darstellt.\n\nZeige mindestens einen Trendverlauf über mehrere Zeitpunkte (z. B. Größe, Anzahl Objekte, Komprimierungsgrad).\n\nBaue eine Run-History früherer Analysen ein (mind. 2 Einträge).\n\nErgebnisse sind rein synthetisch, aber konsistent und wiederholbar.\n\"\"\""
-    },
-    {
-      "id": "comp_1765037840941_d9tanz",
-      "name": "OCCSimulation",
-      "filename": "OCCSimulation.tsx",
-      "createdAt": "2025-12-06T16:17:20.953Z",
-      "prompt": "Create a comprehensive React simulation of the 'OCC Project Lifecycle' with 4 distinct scenes as described below.\n\nUse the uploaded image as the VISUAL BASE for the layout (Header, Navigation Tabs, Dark Theme, Typography). The current tab should be dynamic based on the active scene.\n\nImplement a state machine to navigate through these 4 scenes:\n\n🔹 Scene 1: System Assignment (Systemzuordnung)\n- UI: A form or list to add SAP systems (like 'Available Systems' vs 'In Scope').\n- Action: User clicks to \"Add System\".\n- Feedback: Show a notification \"System successfully added\" and transition state to ready.\n\n🔹 Scene 2: Installation & Environment Setup (Installation & Umgebungsaufbau)\n- UI: A progress screen showing \"Mediator App\" activities (Azure provisioning, JiVS IMP installation).\n- Animation: Simulate a progress bar going 0-100% with changing status text (e.g., \"Provisioning Azure...\", \"Installing JiVS...\").\n- Final State: Show \"Environment Ready\".\n\n🔹 Scene 3: Data Transfer (Datenübertragung)\n- UI: A transfer list (Export Handling App).\n- Behavior: Items start as 'Pending' and sequentially turn to 'Success'.\n- Visuals: Show progress bars or status badges for each item.\n\n🔹 Scene 4: Analysis & Results (Analyse & Ergebnisse)\n- UI: A dashboard showing analysis results (JiVS IMP).\n- Content: At least one trend chart (use a mock chart component or CSS bars) showing size/objects over time.\n- History: A list of previous runs.\n\n**Technical Requirements:**\n- Use the dark theme from the screenshot (black/dark grey backgrounds, blue/purple accents).\n- Create a main 'SimulationController' to manage the step state.\n- Use Tailwind CSS for all styling.\n- Mock all data (no real backend).\n- Make it interactive (buttons to advance to the next scene).\n"
-    },
-    {
-      "id": "comp_1765037853959_t2td2a",
-      "name": "Generated_1765037853943",
-      "filename": "Generated_1765037853943.tsx",
-      "createdAt": "2025-12-06T16:17:33.963Z",
-      "prompt": "OCC Context OCC manages projects that contain one or more systems. Work is performed within a project and against its systems. OCC itself has no direct SAP access. SAP admins use a SAP plugin to export tables/data to an export handling app, which reports transfer status back to OCC. A mediator app provisions the Azure target machine, installs and configures JiVS IMP on a customer-managed machine, and prepares the export handling app for incoming transfers. JiVS IMP (web app on the customer machine) can run analyses and expose results that OCC can surface.\n\n\nYour task:\n\"\"\"\nSimuliere innerhalb eines ausgewählten OCC-Projekts den vollständigen synthetischen Lifecycle in vier klar getrennten Szenen. Alle Daten, Stati, Benachrichtigungen und Zeitverläufe sind vollständig künstlich erzeugt. Es existieren keine echten Integrationen. Die Rollen von Export Handling App, Mediator, JiVS IMP und OCC müssen erkennbar bleiben.\n\n🔹 Szene 1 — Systemzuordnung\n\nStelle die Zuordnung eines oder mehrerer SAP-Systeme zum aktuell ausgewählten OCC-Projekt dar.\n\nDie Systeme erscheinen als neu verknüpft und bereit für weitere Schritte.\n\nZeige synthetische Statusmeldungen oder Bestätigungen (z. B. „System erfolgreich hinzugefügt“).\n\n🔹 Szene 2 — Installation & Umgebungsaufbau\n\nSimuliere den Start des Installationsprozesses für die Zielumgebung.\n\nStelle die Arbeit der Mediator App dar (z. B. Azure-Provisionierung, Installation/Konfiguration von JiVS IMP).\n\nZeige einen simulierten Fortschritt (z. B. 0–100 %) über künstliche Zeitverläufe.\n\nAm Ende: Status „Environment Ready“.\n\n🔹 Szene 3 — Datenübertragung\n\nPräsentiere eine Ansicht der Export Handling App-Transfers.\n\nTransfer-Items starten als Pending und wechseln sequentiell oder gruppenweise zu Success.\n\nZeige synthetische Logs, Meldungen oder Fortschrittsdetails.\n\n🔹 Szene 4 — Analyse & Ergebnisse\n\nSimuliere, dass JiVS IMP Analysen ausgeführt hat und OCC nun die Resultate darstellt.\n\nZeige mindestens einen Trendverlauf über mehrere Zeitpunkte (z. B. Größe, Anzahl Objekte, Komprimierungsgrad).\n\nBaue eine Run-History früherer Analysen ein (mind. 2 Einträge).\n\nErgebnisse sind rein synthetisch, aber konsistent und wiederholbar.\n\"\"\""
+      "id": "comp_1765149482401_mm8m",
+      "name": "WorkflowPlan",
+      "filename": "WorkflowPlan.tsx",
+      "createdAt": "2025-12-07T14:53:21.216Z",
+      "prompt": "Workflow plan for: Generate a 5-screen user flow for an S/4 Transformation Project"
     }
   ],
-  "lastUpdated": "2025-12-06T16:17:33.963Z",
-  "activeComponent": "comp_1765037853959_t2td2a"
+  "lastUpdated": "2025-12-07T23:24:38.434Z",
+  "activeComponent": "comp_1765149482401_mm8m"
 }

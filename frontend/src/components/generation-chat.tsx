@@ -1,35 +1,30 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
+import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Send,
-  Sparkles,
-  Image,
-  Palette,
-  Layout,
-  PanelTop,
   Loader2,
   Bot,
   User,
   Copy,
   Check,
   Maximize2,
-  Wrench,
   CheckCircle2,
   XCircle,
-  Brain,
-  Trash2,
   RotateCcw,
   Code2,
   MousePointer2,
   Undo2,
   PanelLeftClose,
   PanelLeft,
+  ImageIcon,
+  AlertCircle,
+  Square,
   ChevronDown,
   ChevronUp,
-  ImageIcon,
-  X,
+  GripVertical,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -37,557 +32,587 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { useDesignStore, Message, GeneratedDesign, ToolActivity, SelectedElement, AgentPhase } from '@/lib/store';
-import { createThread, streamMessage } from '@/lib/langgraph-client';
+import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
+import { useDesignStore, GeneratedDesign, ToolActivity, SelectedElement } from '@/lib/store';
+import { createThread, streamMessage, cancelRun } from '@/lib/langgraph-client';
 import { CodePreview } from '@/components/code-preview';
-import { saveAndPreview, shouldAutoOpen } from '@/lib/auto-open';
 
-// Phase-specific styling and labels
-const PHASE_CONFIG: Record<AgentPhase, { color: string; bgColor: string; label: string; icon: string }> = {
-  idle: { color: 'text-muted-foreground', bgColor: 'bg-muted/20', label: 'Ready', icon: '⏸️' },
-  thinking: { color: 'text-blue-400', bgColor: 'bg-blue-500/10', label: 'Thinking', icon: '🧠' },
-  tool_running: { color: 'text-purple-400', bgColor: 'bg-purple-500/10', label: 'Running Tool', icon: '🔧' },
-  generating_code: { color: 'text-indigo-400', bgColor: 'bg-indigo-500/10', label: 'Generating Code', icon: '💻' },
-  saving: { color: 'text-green-400', bgColor: 'bg-green-500/10', label: 'Saving', icon: '💾' },
-  complete: { color: 'text-green-500', bgColor: 'bg-green-500/10', label: 'Complete', icon: '✅' },
-};
-
-// Agent Status Bar Component - Shows current agent activity prominently
-function AgentStatusBar({ 
-  isGenerating, 
-  isThinking,
-  activeTools,
-  streamingText,
-  agentPhase,
-  agentMessage,
-  currentTool,
-}: { 
-  isGenerating: boolean;
-  isThinking: boolean;
-  activeTools: ToolActivity[];
-  streamingText: string;
-  agentPhase: AgentPhase;
-  agentMessage?: string;
-  currentTool?: string;
-}) {
-  if (!isGenerating && agentPhase === 'idle') return null;
+// Simple markdown renderer for chat messages
+// Handles: **bold**, *italic*, `code`, and newlines
+function renderMarkdown(text: string): React.ReactNode {
+  if (!text) return null;
   
-  const runningTool = activeTools.find(t => t.status === 'running');
-  const toolConfig = runningTool ? TOOL_CONFIG[runningTool.name] : 
-                     currentTool ? TOOL_CONFIG[currentTool] : null;
-  const phaseConfig = PHASE_CONFIG[agentPhase] || PHASE_CONFIG.thinking;
+  // Split by code blocks first (to avoid parsing markdown inside code)
+  const parts: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let partKey = 0;
   
-  // Calculate elapsed time if we have a running tool with startTime
-  const [elapsedTime, setElapsedTime] = useState(0);
-  useEffect(() => {
-    if (!runningTool?.startTime) {
-      setElapsedTime(0);
-      return;
+  // Process inline formatting
+  const processInline = (str: string): React.ReactNode[] => {
+    const result: React.ReactNode[] = [];
+    let remaining = str;
+    let key = 0;
+    
+    while (remaining.length > 0) {
+      // Check for **bold**
+      const boldMatch = remaining.match(/\*\*(.+?)\*\*/);
+      // Check for *italic* (but not **)
+      const italicMatch = remaining.match(/(?<!\*)\*([^*]+?)\*(?!\*)/);
+      // Check for `code`
+      const codeMatch = remaining.match(/`([^`]+?)`/);
+      
+      // Find the earliest match
+      const matches = [
+        boldMatch ? { type: 'bold', match: boldMatch, index: boldMatch.index! } : null,
+        italicMatch ? { type: 'italic', match: italicMatch, index: italicMatch.index! } : null,
+        codeMatch ? { type: 'code', match: codeMatch, index: codeMatch.index! } : null,
+      ].filter(Boolean).sort((a, b) => a!.index - b!.index);
+      
+      if (matches.length === 0) {
+        // No more matches, add remaining text
+        result.push(remaining);
+        break;
+      }
+      
+      const earliest = matches[0]!;
+      
+      // Add text before match
+      if (earliest.index > 0) {
+        result.push(remaining.slice(0, earliest.index));
+      }
+      
+      // Add formatted element
+      const content = earliest.match[1];
+      switch (earliest.type) {
+        case 'bold':
+          result.push(<strong key={`b-${key++}`} className="font-semibold">{content}</strong>);
+          break;
+        case 'italic':
+          result.push(<em key={`i-${key++}`} className="italic">{content}</em>);
+          break;
+        case 'code':
+          result.push(
+            <code key={`c-${key++}`} className="px-1 py-0.5 rounded bg-muted font-mono text-xs">
+              {content}
+            </code>
+          );
+          break;
+      }
+      
+      // Continue with rest of string
+      remaining = remaining.slice(earliest.index + earliest.match[0].length);
     }
     
-    const interval = setInterval(() => {
-      setElapsedTime(Math.floor((Date.now() - runningTool.startTime!) / 1000));
-    }, 1000);
-    
-    return () => clearInterval(interval);
-  }, [runningTool?.startTime]);
-  
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 20, scale: 0.95 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: 20, scale: 0.95 }}
-      className={`mb-3 rounded-xl ${phaseConfig.bgColor} border border-primary/20 overflow-hidden shadow-lg`}
-    >
-      {/* Main status content */}
-      <div className="p-3 flex items-center gap-3">
-        {/* Animated icon */}
-        <motion.div
-          className="w-10 h-10 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center flex-shrink-0"
-          animate={agentPhase !== 'complete' ? { 
-            boxShadow: [
-              '0 0 0 0 rgba(99, 102, 241, 0.4)',
-              '0 0 0 8px rgba(99, 102, 241, 0)',
-            ]
-          } : {}}
-          transition={{ duration: 1.5, repeat: Infinity }}
-        >
-          {agentPhase === 'complete' ? (
-            <motion.span
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ type: 'spring', stiffness: 500 }}
-              className="text-lg"
-            >
-              ✅
-            </motion.span>
-          ) : toolConfig ? (
-            <span className="text-lg">{toolConfig.icon}</span>
-          ) : (
-            <motion.div
-              animate={{ rotate: 360 }}
-              transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
-            >
-              <Sparkles className="w-5 h-5 text-white" />
-            </motion.div>
-          )}
-        </motion.div>
-        
-        {/* Status text */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <span className={`font-semibold text-sm ${phaseConfig.color}`}>
-              {toolConfig?.name || phaseConfig.label}
-            </span>
-            {agentPhase !== 'complete' && agentPhase !== 'idle' && (
-              <motion.div
-                className="flex gap-0.5"
-                animate={{ opacity: [1, 0.5, 1] }}
-                transition={{ duration: 1, repeat: Infinity }}
-              >
-                <span className="w-1.5 h-1.5 rounded-full bg-primary" />
-                <span className="w-1.5 h-1.5 rounded-full bg-primary" />
-                <span className="w-1.5 h-1.5 rounded-full bg-primary" />
-              </motion.div>
-            )}
-          </div>
-          <p className="text-xs text-muted-foreground truncate">
-            {agentMessage || toolConfig?.description || 'Processing...'}
-          </p>
-        </div>
-        
-        {/* Time indicator */}
-        {elapsedTime > 0 && agentPhase !== 'complete' && (
-          <div className="text-xs text-muted-foreground font-mono">
-            {elapsedTime}s
-          </div>
-        )}
-      </div>
-      
-      {/* Progress bar */}
-      {agentPhase !== 'complete' && agentPhase !== 'idle' && (
-        <div className="h-1.5 bg-muted/30">
-          <motion.div
-            className="h-full bg-gradient-to-r from-primary via-accent to-primary"
-            initial={{ x: '-100%' }}
-            animate={{ x: '100%' }}
-            transition={{ duration: 1.2, repeat: Infinity, ease: 'linear' }}
-            style={{ width: '50%' }}
-          />
-        </div>
-      )}
-      
-      {/* Complete indicator */}
-      {agentPhase === 'complete' && (
-        <div className="h-1.5 bg-green-500" />
-      )}
-      
-      {/* Streaming text preview */}
-      {streamingText && streamingText.length > 0 && agentPhase !== 'complete' && (
-        <motion.div
-          initial={{ height: 0, opacity: 0 }}
-          animate={{ height: 'auto', opacity: 1 }}
-          className="px-3 py-2 bg-muted/20 border-t border-border/30"
-        >
-          <p className="text-xs text-muted-foreground line-clamp-2">
-            <span className="text-primary font-medium">Preview: </span>
-            {streamingText.slice(-150)}
-            <motion.span
-              className="inline-block w-1.5 h-3 ml-0.5 bg-primary"
-              animate={{ opacity: [1, 0] }}
-              transition={{ duration: 0.5, repeat: Infinity }}
-            />
-          </p>
-        </motion.div>
-      )}
-    </motion.div>
-  );
-}
-
-// Collapsible Uploaded Images Panel
-function UploadedImagesPanel({ 
-  images, 
-  isExpanded, 
-  onToggle 
-}: { 
-  images: { id: string; name: string; preview?: string; base64: string }[];
-  isExpanded: boolean;
-  onToggle: () => void;
-}) {
-  if (images.length === 0) return null;
-  
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: -10 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="absolute top-2 right-2 z-20"
-    >
-      <div className="bg-background/95 backdrop-blur-sm border border-border rounded-lg shadow-lg overflow-hidden">
-        {/* Header - Always visible */}
-        <button
-          onClick={onToggle}
-          className="w-full px-3 py-2 flex items-center gap-2 hover:bg-muted/50 transition-colors"
-        >
-          <ImageIcon className="w-4 h-4 text-primary" />
-          <span className="text-sm font-medium">{images.length} Image{images.length > 1 ? 's' : ''}</span>
-          {isExpanded ? (
-            <ChevronUp className="w-4 h-4 ml-auto" />
-          ) : (
-            <ChevronDown className="w-4 h-4 ml-auto" />
-          )}
-        </button>
-        
-        {/* Expanded content */}
-        <AnimatePresence>
-          {isExpanded && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              className="border-t border-border"
-            >
-              <div className="p-2 grid grid-cols-2 gap-2 max-w-[280px] max-h-[300px] overflow-auto">
-                {images.map((img) => (
-                  <div key={img.id} className="relative group">
-                    <img
-                      src={img.preview || `data:image/jpeg;base64,${img.base64}`}
-                      alt={img.name}
-                      className="w-full h-24 object-cover rounded-md border border-border"
-                    />
-                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity rounded-md flex items-center justify-center">
-                      <p className="text-xs text-white text-center px-1 truncate">{img.name}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-    </motion.div>
-  );
-}
-
-const QUICK_PROMPTS = [
-  {
-    icon: Code2,
-    label: 'Convert to Code',
-    prompt: 'Convert this UI screenshot to React + Tailwind code',
-  },
-  {
-    icon: PanelTop,
-    label: 'UI Mockup',
-    prompt: 'Create a modern mobile app screen for',
-  },
-  {
-    icon: Layout,
-    label: 'Dashboard',
-    prompt: 'Design a data dashboard showing',
-  },
-  {
-    icon: Palette,
-    label: 'Marketing Banner',
-    prompt: 'Create a marketing banner for',
-  },
-];
-
-// Tool display config with descriptions and detailed steps
-const TOOL_CONFIG: Record<string, { icon: string; name: string; description: string; color: string; steps?: string[] }> = {
-  generate_design_image: {
-    icon: '🎨',
-    name: 'Generating Design',
-    description: 'Creating a new design image based on your requirements...',
-    color: 'text-purple-400',
-    steps: ['Analyzing prompt...', 'Generating image...', 'Optimizing output...'],
-  },
-  analyze_design_style: {
-    icon: '🔍',
-    name: 'Analyzing Style',
-    description: 'Extracting colors, typography, and layout patterns...',
-    color: 'text-blue-400',
-    steps: ['Scanning image...', 'Extracting colors...', 'Detecting typography...', 'Analyzing layout...'],
-  },
-  extract_brand_identity: {
-    icon: '🌐',
-    name: 'Extracting Brand',
-    description: 'Scraping website to extract brand colors and styles...',
-    color: 'text-cyan-400',
-    steps: ['Fetching website...', 'Parsing content...', 'Extracting brand elements...'],
-  },
-  get_style_context: {
-    icon: '📋',
-    name: 'Loading Style',
-    description: 'Retrieving previously analyzed style guide...',
-    color: 'text-yellow-400',
-  },
-  compare_styles: {
-    icon: '⚖️',
-    name: 'Comparing Styles',
-    description: 'Analyzing differences between design styles...',
-    color: 'text-orange-400',
-  },
-  knowledge_store: {
-    icon: '📚',
-    name: 'Accessing Knowledge',
-    description: 'Retrieving stored brand guidelines...',
-    color: 'text-green-400',
-  },
-  image_to_code: {
-    icon: '💻',
-    name: 'Converting to Code',
-    description: 'Calling Gemini AI to analyze screenshot (this takes 60-90 seconds)...',
-    color: 'text-indigo-400',
-    steps: ['Uploading image to AI...', 'AI is analyzing the layout...', 'Identifying UI components...', 'Generating React code...', 'Adding Tailwind styles...', 'Almost done...'],
-  },
-  modify_code: {
-    icon: '✏️',
-    name: 'Modifying Code',
-    description: 'Applying your changes to the component code...',
-    color: 'text-pink-400',
-    steps: ['Understanding request...', 'Locating element...', 'Applying changes...', 'Validating code...'],
-  },
-};
-
-// Pretty-print tool arg values (avoid [object Object])
-const formatArgValue = (value: unknown): string => {
-  if (value === null || value === undefined) return '';
-  if (typeof value === 'string') return value;
-  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
-  try {
-    const s = JSON.stringify(value);
-    return s;
-  } catch {
-    return String(value);
-  }
-};
-
-function ToolActivityDisplay({ tool }: { tool: ToolActivity }) {
-  const config = TOOL_CONFIG[tool.name] || {
-    icon: '🔧',
-    name: tool.name,
-    description: 'Processing...',
-    color: 'text-gray-400',
+    return result;
   };
   
-  const [currentStep, setCurrentStep] = useState(0);
-  const steps = config.steps || [config.description];
+  // Split by lines and process each
+  const lines = text.split('\n');
+  return lines.map((line, lineIdx) => (
+    <React.Fragment key={lineIdx}>
+      {processInline(line)}
+      {lineIdx < lines.length - 1 && <br />}
+    </React.Fragment>
+  ));
+}
+
+// Tool display config with detailed steps
+const TOOL_CONFIG: Record<string, { icon: string; name: string; color: string; steps?: string[] }> = {
+  generate_design_image: { 
+    icon: '🎨', 
+    name: 'Generating Design', 
+    color: 'text-purple-400',
+    steps: ['Analyzing prompt', 'Creating design', 'Rendering image']
+  },
+  analyze_design_style: { 
+    icon: '🔍', 
+    name: 'Analyzing Style', 
+    color: 'text-blue-400',
+    steps: ['Extracting colors', 'Analyzing typography', 'Detecting patterns']
+  },
+  extract_brand_identity: { icon: '🌐', name: 'Extracting Brand', color: 'text-cyan-400' },
+  get_style_context: { icon: '📋', name: 'Loading Style', color: 'text-yellow-400' },
+  compare_styles: { icon: '⚖️', name: 'Comparing Styles', color: 'text-orange-400' },
+  knowledge_store: { icon: '📚', name: 'Accessing Knowledge', color: 'text-green-400' },
+  image_to_code: { 
+    icon: '💻', 
+    name: 'Converting to Code', 
+    color: 'text-indigo-400',
+    steps: ['Loading image', 'Analyzing UI structure', 'Extracting components', 'Generating React code']
+  },
+  modify_code: { 
+    icon: '✏️', 
+    name: 'Modifying Code', 
+    color: 'text-pink-400',
+    steps: ['Loading current code', 'Analyzing changes', 'Applying modifications']
+  },
+  // Screen management tools
+  list_screens: { icon: '📋', name: 'Listing Screens', color: 'text-blue-400' },
+  load_screen: { icon: '📂', name: 'Loading Screen', color: 'text-cyan-400' },
+  update_screen: { icon: '💾', name: 'Saving Screen', color: 'text-green-400' },
+  create_screen: { icon: '➕', name: 'Creating Screen', color: 'text-emerald-400' },
+  delete_screen: { icon: '🗑️', name: 'Deleting Screen', color: 'text-red-400' },
+  // Screen generation tool
+  generate_screen: { 
+    icon: '📄', 
+    name: 'Generating Screen', 
+    color: 'text-violet-400',
+    steps: ['Planning layout', 'Generating code', 'Saving to sandbox']
+  },
+  generate_multiple_design_images: { icon: '🎨', name: 'Generating Images', color: 'text-purple-400' },
+  // Flow tools
+  generate_flow_spec: { icon: '🔀', name: 'Creating Flow', color: 'text-amber-400' },
+};
+
+// Format JSON with syntax highlighting for display - show more content
+function formatJsonValue(value: unknown, depth = 0, maxStringLen = 500): React.ReactNode {
+  const indent = '  '.repeat(depth);
   
-  // Animate through steps when running - slower for long operations
-  useEffect(() => {
-    if (tool.status !== 'running' || !config.steps) return;
+  if (value === null) return <span className="text-orange-400">null</span>;
+  if (value === undefined) return <span className="text-gray-500">undefined</span>;
+  if (typeof value === 'boolean') return <span className="text-purple-400">{value.toString()}</span>;
+  if (typeof value === 'number') return <span className="text-cyan-400">{value}</span>;
+  if (typeof value === 'string') {
+    // Show more of the string content
+    const displayValue = value.length > maxStringLen ? value.slice(0, maxStringLen) + `... (+${value.length - maxStringLen} chars)` : value;
+    return <span className="text-green-400 whitespace-pre-wrap break-all">"{displayValue}"</span>;
+  }
+  
+  if (Array.isArray(value)) {
+    if (value.length === 0) return <span className="text-gray-400">[]</span>;
+    return (
+      <span className="block">
+        <span className="text-gray-400">[</span>
+        {value.slice(0, 10).map((item, i) => (
+          <span key={i} className="block ml-2">
+            {formatJsonValue(item, depth + 1, maxStringLen)}
+            {i < Math.min(value.length, 10) - 1 && ','}
+          </span>
+        ))}
+        {value.length > 10 && <span className="block text-gray-500 ml-2">...+{value.length - 10} more items</span>}
+        <span className="text-gray-400">]</span>
+      </span>
+    );
+  }
+  
+  if (typeof value === 'object') {
+    const entries = Object.entries(value);
+    if (entries.length === 0) return <span className="text-gray-400">{'{}'}</span>;
+    return (
+      <span className="block">
+        <span className="text-gray-400">{'{'}</span>
+        {entries.slice(0, 10).map(([k, v], i) => (
+          <span key={k} className="block ml-2">
+            <span className="text-blue-400">"{k}"</span>: {formatJsonValue(v, depth + 1, maxStringLen)}
+            {i < Math.min(entries.length, 10) - 1 && ','}
+          </span>
+        ))}
+        {entries.length > 10 && <span className="block text-gray-500 ml-2">...+{entries.length - 10} more keys</span>}
+        <span className="text-gray-400">{'}'}</span>
+      </span>
+    );
+  }
+  
+  return <span>{String(value)}</span>;
+}
+
+// Extract a short summary from tool result for compact display
+function getResultSummary(result: string, maxLen = 60): string {
+  try {
+    const parsed = JSON.parse(result);
+    // Use message, summary first line, or success status
+    if (parsed.message) return parsed.message.slice(0, maxLen);
+    if (parsed.summary) return parsed.summary.split('\n')[0].slice(0, maxLen);
+    if (parsed.success === true) return `Success (${Object.keys(parsed).length} fields)`;
+    if (parsed.success === false && parsed.error) return `Error: ${parsed.error.slice(0, maxLen - 7)}`;
+    return result.slice(0, maxLen);
+  } catch {
+    return result.slice(0, maxLen);
+  }
+}
+
+// Parse and format tool result - handles JSON strings
+function formatToolResult(result: string): React.ReactNode {
+  // Try to parse as JSON for pretty display
+  try {
+    const parsed = JSON.parse(result);
     
-    // Longer interval for code generation tools (15 seconds per step)
-    const isLongOperation = tool.name === 'image_to_code' || tool.name === 'modify_code';
-    const stepDuration = isLongOperation ? 15000 : 3000;
+    // Special handling for business_dna results - show summary prominently
+    if (parsed.business_dna && parsed.summary) {
+      return (
+        <div className="space-y-2">
+          <div className="text-green-400 font-medium">✅ {parsed.message || 'Analysis complete'}</div>
+          <div className="whitespace-pre-wrap text-muted-foreground">{parsed.summary}</div>
+          <details className="mt-2">
+            <summary className="cursor-pointer text-xs text-blue-400 hover:text-blue-300">
+              View full DNA data ({parsed.image_count} images analyzed)
+            </summary>
+            <div className="mt-2 pl-2 border-l border-border">
+              {formatJsonValue(parsed.business_dna, 0, 200)}
+            </div>
+          </details>
+        </div>
+      );
+    }
     
-    const interval = setInterval(() => {
-      setCurrentStep((prev) => (prev + 1) % steps.length);
-    }, stepDuration);
-    
-    return () => clearInterval(interval);
-  }, [tool.status, config.steps, steps.length, tool.name]);
+    // For other JSON results, show formatted
+    return formatJsonValue(parsed, 0, 300);
+  } catch {
+    // Not JSON, return as-is
+    return <span className="whitespace-pre-wrap break-all">{result}</span>;
+  }
+}
+
+// Tool call details component for hover display
+function ToolCallDetails({ tool }: { tool: ToolActivity }) {
+  const [copiedInput, setCopiedInput] = useState(false);
+  const [copiedOutput, setCopiedOutput] = useState(false);
+  const config = TOOL_CONFIG[tool.name] || { icon: '🔧', name: tool.name, color: 'text-gray-400' };
+  
+  const elapsedTime = tool.startTime 
+    ? Math.floor((Date.now() - tool.startTime) / 1000) 
+    : 0;
+  
+  const copyToClipboard = async (text: string, type: 'input' | 'output') => {
+    await navigator.clipboard.writeText(text);
+    if (type === 'input') {
+      setCopiedInput(true);
+      setTimeout(() => setCopiedInput(false), 2000);
+    } else {
+      setCopiedOutput(true);
+      setTimeout(() => setCopiedOutput(false), 2000);
+    }
+  };
   
   return (
-    <motion.div
-      initial={{ opacity: 0, y: -10, scale: 0.95 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: -10, scale: 0.95 }}
-      className="rounded-lg border border-border/50 overflow-hidden shadow-lg"
-    >
+    <div className="space-y-3">
       {/* Header */}
-      <div className={`flex items-center gap-3 py-3 px-4 ${
-        tool.status === 'running' ? 'bg-gradient-to-r from-primary/20 to-accent/10' : 
-        tool.status === 'completed' ? 'bg-gradient-to-r from-green-500/20 to-emerald-500/10' : 'bg-red-500/10'
-      }`}>
-        <motion.span 
-          className="text-xl"
-          animate={tool.status === 'running' ? { scale: [1, 1.2, 1] } : {}}
-          transition={{ duration: 1, repeat: Infinity }}
-        >
-          {config.icon}
-        </motion.span>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <span className={`font-semibold ${config.color}`}>{config.name}</span>
-            {/* Removed spinning loader - progress bar at bottom is cleaner */}
-            {tool.status === 'completed' && (
-              <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{ type: 'spring', stiffness: 500, damping: 15 }}
-              >
-                <CheckCircle2 className="w-4 h-4 text-green-500" />
-              </motion.div>
-            )}
-            {tool.status === 'error' && (
-              <XCircle className="w-4 h-4 text-red-500" />
-            )}
-          </div>
+      <div className="flex items-center justify-between border-b border-border pb-2">
+        <div className="flex items-center gap-2">
+          <span className="text-lg">{config.icon}</span>
+          <span className={`font-medium ${config.color}`}>{config.name}</span>
+        </div>
+        <div className="flex items-center gap-2">
           {tool.status === 'running' && (
-            <AnimatePresence mode="wait">
-              <motion.p 
-                key={currentStep}
-                initial={{ opacity: 0, y: 5 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -5 }}
-                className="text-xs text-muted-foreground mt-1"
-              >
-                {steps[currentStep]}
-              </motion.p>
-            </AnimatePresence>
+            <Badge variant="outline" className="bg-primary/10 text-primary border-primary/30 text-xs">
+              <Loader2 className="w-3 h-3 animate-spin mr-1" />
+              Running {elapsedTime > 0 && `${elapsedTime}s`}
+            </Badge>
           )}
-          {/* Show tool arguments for context */}
-          {tool.args && Object.keys(tool.args).length > 0 && (
-            <div className="mt-1.5 flex flex-wrap gap-1">
-              {Object.entries(tool.args).slice(0, 3).map(([key, value]) => {
-                // Skip large values like code or base64
-                const strValue = formatArgValue(value);
-                if (strValue.length > 120 || key === 'code' || key === 'image') return null;
-                return (
-                  <span 
-                    key={key}
-                    className="text-[10px] px-1.5 py-0.5 rounded bg-muted/50 text-muted-foreground"
-                  >
-                    {key}: {strValue.length > 60 ? `${strValue.slice(0, 60)}...` : strValue}
-                  </span>
-                );
-              })}
-            </div>
+          {tool.status === 'completed' && (
+            <Badge variant="outline" className="bg-green-500/10 text-green-400 border-green-500/30 text-xs">
+              <CheckCircle2 className="w-3 h-3 mr-1" />
+              Completed
+            </Badge>
+          )}
+          {tool.status === 'error' && (
+            <Badge variant="outline" className="bg-red-500/10 text-red-400 border-red-500/30 text-xs">
+              <XCircle className="w-3 h-3 mr-1" />
+              Error
+            </Badge>
           )}
         </div>
-        {/* Step counter */}
-        {tool.status === 'running' && config.steps && (
-          <div className="text-xs text-muted-foreground">
-            {currentStep + 1}/{steps.length}
+      </div>
+      
+      {/* Input Args */}
+      {tool.args && Object.keys(tool.args).length > 0 && (
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs font-medium text-blue-400">Input Arguments</span>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-5 w-5"
+              onClick={() => copyToClipboard(JSON.stringify(tool.args, null, 2), 'input')}
+            >
+              {copiedInput ? (
+                <Check className="w-3 h-3 text-green-500" />
+              ) : (
+                <Copy className="w-3 h-3 text-muted-foreground" />
+              )}
+            </Button>
           </div>
+          <div className="bg-blue-500/5 border border-blue-500/20 rounded-md p-2 text-xs font-mono overflow-auto max-h-48">
+            {formatJsonValue(tool.args)}
+          </div>
+        </div>
+      )}
+      
+      {/* Output Result */}
+      {tool.result && (
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <span className={`text-xs font-medium ${tool.status === 'error' ? 'text-red-400' : 'text-green-400'}`}>
+              Output Result
+            </span>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-5 w-5"
+              onClick={() => copyToClipboard(tool.result || '', 'output')}
+            >
+              {copiedOutput ? (
+                <Check className="w-3 h-3 text-green-500" />
+              ) : (
+                <Copy className="w-3 h-3 text-muted-foreground" />
+              )}
+            </Button>
+          </div>
+          <div className={`${tool.status === 'error' ? 'bg-red-500/5 border-red-500/20' : 'bg-green-500/5 border-green-500/20'} border rounded-md p-2 text-xs font-mono overflow-auto max-h-64`}>
+            <div className="text-muted-foreground">
+              {formatToolResult(tool.result)}
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* No data message */}
+      {!tool.args && !tool.result && tool.status === 'running' && (
+        <p className="text-xs text-muted-foreground text-center py-2">
+          Processing...
+        </p>
+      )}
+    </div>
+  );
+}
+
+// Enhanced tool display with progress steps
+function ToolBadge({ tool, expanded = false }: { tool: ToolActivity; expanded?: boolean }) {
+  const config = TOOL_CONFIG[tool.name] || { icon: '🔧', name: tool.name, color: 'text-gray-400' };
+  const [currentStep, setCurrentStep] = useState(0);
+  
+  // Animate through steps while running
+  useEffect(() => {
+    if (tool.status === 'running' && config.steps) {
+      const interval = setInterval(() => {
+        setCurrentStep((prev) => (prev + 1) % config.steps!.length);
+      }, 1500);
+      return () => clearInterval(interval);
+    }
+  }, [tool.status, config.steps]);
+  
+  const elapsedTime = tool.startTime ? Math.floor((Date.now() - tool.startTime) / 1000) : 0;
+  
+  const badgeContent = (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{ opacity: 1, scale: 1 }}
+      className={`rounded-md text-xs overflow-hidden cursor-help ${
+        tool.status === 'running' 
+          ? 'bg-primary/10 border border-primary/20' 
+          : tool.status === 'completed'
+          ? 'bg-green-500/10 border border-green-500/20'
+          : 'bg-red-500/10 border border-red-500/20'
+      }`}
+    >
+      <div className="flex items-center gap-1.5 px-2 py-1">
+        <span>{config.icon}</span>
+        <span className={config.color}>{config.name}</span>
+        {tool.status === 'running' && (
+          <>
+            <Loader2 className="w-3 h-3 animate-spin text-primary" />
+            {elapsedTime > 0 && (
+              <span className="text-muted-foreground ml-1">{elapsedTime}s</span>
+            )}
+          </>
+        )}
+        {tool.status === 'completed' && (
+          <CheckCircle2 className="w-3 h-3 text-green-500" />
+        )}
+        {tool.status === 'error' && (
+          <XCircle className="w-3 h-3 text-red-500" />
         )}
       </div>
       
-      {/* Progress bar for running */}
-      {tool.status === 'running' && (
-        <div className="h-1.5 bg-muted/50 overflow-hidden">
-          <motion.div
-            className="h-full bg-gradient-to-r from-primary via-accent to-primary"
-            initial={{ x: '-100%' }}
-            animate={{ x: '100%' }}
-            transition={{ duration: 1.2, repeat: Infinity, ease: 'linear' }}
-            style={{ width: '60%' }}
-          />
-        </div>
-      )}
-      
-      {/* Step indicators for running */}
-      {tool.status === 'running' && config.steps && config.steps.length > 1 && (
-        <div className="px-4 py-2 flex gap-1.5">
-          {config.steps.map((_, idx) => (
-            <motion.div
-              key={idx}
-              className={`h-1 flex-1 rounded-full ${
-                idx <= currentStep ? 'bg-primary' : 'bg-muted'
-              }`}
-              animate={idx === currentStep ? { opacity: [0.5, 1, 0.5] } : {}}
-              transition={{ duration: 0.8, repeat: Infinity }}
-            />
-          ))}
-        </div>
-      )}
-      
-      {/* Result summary - Enhanced with more details */}
-      {tool.status === 'completed' && (
+      {/* Progress steps animation */}
+      {tool.status === 'running' && config.steps && (
         <motion.div 
           initial={{ height: 0, opacity: 0 }}
           animate={{ height: 'auto', opacity: 1 }}
-          className="px-4 py-3 bg-muted/30 text-sm border-t border-border/30"
+          className="px-2 pb-1.5 border-t border-primary/10"
         >
-          {tool.name === 'image_to_code' || tool.name === 'modify_code' ? (
-            <div className="flex items-center gap-2">
-              <Code2 className="w-4 h-4 text-green-400" />
-              <span className="text-green-400 font-medium">Code generated successfully</span>
-            </div>
-          ) : tool.name === 'generate_design_image' ? (
-            <div className="flex items-center gap-2">
-              <ImageIcon className="w-4 h-4 text-purple-400" />
-              <span className="text-purple-400 font-medium">Design image created</span>
-            </div>
-          ) : tool.name === 'analyze_design_style' ? (
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <Palette className="w-4 h-4 text-blue-400" />
-                <span className="text-blue-400 font-medium">Style analysis complete</span>
-              </div>
-              {tool.result && (
-                <p className="text-xs text-muted-foreground pl-6 line-clamp-2">
-                  {tool.result}
-                </p>
-              )}
-            </div>
-          ) : tool.name === 'extract_brand_identity' ? (
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <Layout className="w-4 h-4 text-cyan-400" />
-                <span className="text-cyan-400 font-medium">Brand identity extracted</span>
-              </div>
-              {tool.result && (
-                <p className="text-xs text-muted-foreground pl-6 line-clamp-2">
-                  {tool.result}
-                </p>
-              )}
-            </div>
-          ) : tool.result ? (
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-green-400" />
-                <span className="text-green-400 font-medium">Completed</span>
-              </div>
-              <p className="text-xs text-muted-foreground pl-6 line-clamp-3">
-                {tool.result.length > 200 ? `${tool.result.slice(0, 200)}...` : tool.result}
-              </p>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-green-400" />
-              <span className="text-green-400 font-medium">Completed</span>
-            </div>
-          )}
-        </motion.div>
-      )}
-      
-      {/* Error state */}
-      {tool.status === 'error' && tool.result && (
-        <motion.div 
-          initial={{ height: 0, opacity: 0 }}
-          animate={{ height: 'auto', opacity: 1 }}
-          className="px-4 py-3 bg-red-500/10 text-sm border-t border-red-500/30"
-        >
-          <div className="flex items-start gap-2">
-            <XCircle className="w-4 h-4 text-red-400 mt-0.5" />
-            <div>
-              <span className="text-red-400 font-medium">Error occurred</span>
-              <p className="text-xs text-red-300/70 mt-1">{tool.result}</p>
-            </div>
+          <div className="flex items-center gap-1 text-[10px] text-muted-foreground mt-1">
+            <span className="text-primary">→</span>
+            <motion.span
+              key={currentStep}
+              initial={{ opacity: 0, x: -5 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 5 }}
+            >
+              {config.steps[currentStep]}...
+            </motion.span>
           </div>
         </motion.div>
       )}
+      
+      {/* Show result summary when completed */}
+      {tool.status === 'completed' && tool.result && expanded && (
+        <div className="px-2 pb-1.5 border-t border-green-500/10">
+          <p className="text-[10px] text-muted-foreground mt-1 truncate">
+            ✓ {getResultSummary(tool.result, 80)}
+          </p>
+        </div>
+      )}
+    </motion.div>
+  );
+  
+  return (
+    <HoverCard openDelay={200} closeDelay={100}>
+      <HoverCardTrigger asChild>
+        {badgeContent}
+      </HoverCardTrigger>
+      <HoverCardContent 
+        className="w-[500px] max-h-[500px] overflow-auto p-3" 
+        side="right" 
+        align="start"
+        sideOffset={8}
+      >
+        <ToolCallDetails tool={tool} />
+      </HoverCardContent>
+    </HoverCard>
+  );
+}
+
+// Thinking indicator with contextual messages
+function ThinkingIndicator({ hasTools }: { hasTools: boolean }) {
+  const [thinkingPhase, setThinkingPhase] = useState(0);
+  const phases = [
+    { icon: '🔍', text: 'Analyzing your request...' },
+    { icon: '📋', text: 'Planning approach...' },
+    { icon: '🧠', text: 'Thinking...' },
+  ];
+  
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setThinkingPhase((prev) => (prev + 1) % phases.length);
+    }, 2000);
+    return () => clearInterval(interval);
+  }, []);
+  
+  if (hasTools) return null;
+  
+  const phase = phases[thinkingPhase];
+  
+  return (
+    <motion.div 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="flex items-center gap-2 text-sm text-muted-foreground"
+    >
+      <motion.span
+        key={thinkingPhase}
+        initial={{ scale: 0.8, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        className="text-base"
+      >
+        {phase.icon}
+      </motion.span>
+      <motion.span
+        key={`text-${thinkingPhase}`}
+        initial={{ opacity: 0, x: -5 }}
+        animate={{ opacity: 1, x: 0 }}
+      >
+        {phase.text}
+      </motion.span>
+      <motion.div
+        className="flex gap-0.5"
+        animate={{ opacity: [1, 0.5, 1] }}
+        transition={{ duration: 1.5, repeat: Infinity }}
+      >
+        <span className="w-1 h-1 rounded-full bg-primary" />
+        <span className="w-1 h-1 rounded-full bg-primary" />
+        <span className="w-1 h-1 rounded-full bg-primary" />
+      </motion.div>
     </motion.div>
   );
 }
+
+// Quick prompts - simplified
+const QUICK_PROMPTS = [
+  { label: 'Convert to code', prompt: 'Convert this UI screenshot to React + Tailwind code' },
+  { label: 'Make a dashboard', prompt: 'Design a data dashboard showing' },
+];
+
+// Collapsible user message component
+const USER_MESSAGE_COLLAPSE_THRESHOLD = 150; // characters
+const USER_MESSAGE_COLLAPSED_HEIGHT = 72; // pixels (~3 lines)
+
+function CollapsibleUserMessage({ content, messageId }: { content: string; messageId: string }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const shouldCollapse = content.length > USER_MESSAGE_COLLAPSE_THRESHOLD;
+  
+  if (!shouldCollapse) {
+    return (
+      <p className="text-sm whitespace-pre-wrap break-words">
+        {renderMarkdown(content)}
+      </p>
+    );
+  }
+  
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="relative">
+        <motion.div
+          initial={false}
+          animate={{ 
+            maxHeight: isExpanded ? 2000 : USER_MESSAGE_COLLAPSED_HEIGHT,
+          }}
+          transition={{ duration: 0.3, ease: 'easeInOut' }}
+          className="overflow-hidden"
+        >
+          <p className="text-sm whitespace-pre-wrap break-words">
+            {renderMarkdown(content)}
+          </p>
+        </motion.div>
+        {!isExpanded && (
+          <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-primary to-transparent pointer-events-none" />
+        )}
+      </div>
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="h-6 px-2 py-0 text-xs text-primary-foreground/80 hover:text-primary-foreground hover:bg-primary-foreground/10 self-start"
+      >
+        {isExpanded ? (
+          <>
+            <ChevronUp className="w-3 h-3 mr-1" />
+            Show less
+          </>
+        ) : (
+          <>
+            <ChevronDown className="w-3 h-3 mr-1" />
+            Show more
+          </>
+        )}
+      </Button>
+    </div>
+  );
+}
+
+// Panel resize constants
+const MIN_PANEL_WIDTH = 320;
+const MAX_PANEL_WIDTH = 600;
+const DEFAULT_PANEL_WIDTH = 400;
 
 export function GenerationChat() {
   const [input, setInput] = useState('');
   const [copied, setCopied] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(true);
-  const [showUploadedImages, setShowUploadedImages] = useState(false);
+  const [panelWidth, setPanelWidth] = useState(DEFAULT_PANEL_WIDTH);
+  const [isResizing, setIsResizing] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const resizeRef = useRef<HTMLDivElement>(null);
 
   const {
     messages,
     addMessage,
-    updateMessage,
     updateMessageState,
     addToolToMessage,
     updateToolInMessage,
     addImageToMessage,
+    addSegmentToMessage,
     clearMessages,
     isGenerating,
     setIsGenerating,
@@ -595,7 +620,6 @@ export function GenerationChat() {
     setThreadId,
     uploadedAssets,
     addDesign,
-    // Code Builder State
     generatedCode,
     setGeneratedCode,
     codeHistory,
@@ -603,12 +627,10 @@ export function GenerationChat() {
     undoCode,
     selectedElement,
     setSelectedElement,
-    isCodeGenerating,
     setIsCodeGenerating,
-    // Agent Status
-    agentStatus,
-    setAgentPhase,
-    resetAgentStatus,
+    generatedDesigns,
+    currentRunId,
+    setCurrentRunId,
   } = useDesignStore();
 
   // Clear chat and start new thread
@@ -620,10 +642,69 @@ export function GenerationChat() {
     setThreadId(newThread);
   }, [clearMessages, setThreadId, setGeneratedCode, setSelectedElement]);
 
+  // Stop current generation - preserves context for follow-up
+  const handleStop = useCallback(async () => {
+    if (!isGenerating || !threadId || !currentRunId) return;
+    
+    try {
+      await cancelRun(threadId, currentRunId);
+      // Update the last assistant message to show it was stopped
+      const lastAssistantMsg = messages.findLast(m => m.role === 'assistant' && m.isStreaming);
+      if (lastAssistantMsg) {
+        updateMessageState(lastAssistantMsg.id, {
+          isStreaming: false,
+          isThinking: false,
+          content: lastAssistantMsg.content + '\n\n*[Generation stopped by user]*',
+        });
+      }
+    } catch (error) {
+      console.warn('Error stopping generation:', error);
+    } finally {
+      setIsGenerating(false);
+      setIsCodeGenerating(false);
+      setCurrentRunId(null);
+    }
+  }, [isGenerating, threadId, currentRunId, messages, updateMessageState, setIsGenerating, setIsCodeGenerating, setCurrentRunId]);
+
   // Scroll to bottom when new messages arrive
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Auto-resize textarea when input changes (e.g., from quick prompts)
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 300)}px`;
+    }
+  }, [input]);
+
+  // Handle panel resize
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizing) return;
+      const newWidth = Math.min(MAX_PANEL_WIDTH, Math.max(MIN_PANEL_WIDTH, e.clientX));
+      setPanelWidth(newWidth);
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+
+    if (isResizing) {
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizing]);
 
   // Initialize thread on mount
   useEffect(() => {
@@ -636,10 +717,11 @@ export function GenerationChat() {
     if (!input.trim() || isGenerating) return;
 
     let userMessage = input.trim();
+    const originalInput = input.trim();
     setInput('');
     setIsGenerating(true);
 
-    // If there's a selected element, add context to the message
+    // Add element context if selected
     if (selectedElement) {
       userMessage = `[Selected element: ${selectedElement.description}]\n\n${userMessage}`;
     }
@@ -649,11 +731,11 @@ export function GenerationChat() {
     addMessage({
       id: userMsgId,
       role: 'user',
-      content: input.trim(), // Show original message without context
+      content: originalInput,
       timestamp: new Date(),
     });
 
-    // Add placeholder for assistant message
+    // Add placeholder for assistant
     const assistantMsgId = `assistant-${Date.now()}`;
     addMessage({
       id: assistantMsgId,
@@ -663,34 +745,25 @@ export function GenerationChat() {
       isStreaming: true,
       isThinking: true,
       activeTools: [],
+      segments: [], // Initialize for chronological display
     });
 
     try {
-      // Get image base64 from uploaded assets for context
-      // Use all images but limit total size to avoid token limits
-      const MAX_TOTAL_SIZE = 5 * 1024 * 1024; // 5MB total in base64 chars
-      const MAX_IMAGE_SIZE = 1 * 1024 * 1024; // 1MB per image max
+      // Prepare images
+      const MAX_TOTAL_SIZE = 5 * 1024 * 1024;
+      const MAX_IMAGE_SIZE = 1 * 1024 * 1024;
       
-      // Filter and sort images by size (smallest first to include as many as possible)
       const validImages = uploadedAssets
         .filter((a) => a.type === 'image' && a.base64.length < MAX_IMAGE_SIZE)
         .sort((a, b) => a.base64.length - b.base64.length);
       
-      // Add images until we hit the total size limit
       const imageContexts: string[] = [];
       let totalSize = 0;
       for (const asset of validImages) {
         if (totalSize + asset.base64.length <= MAX_TOTAL_SIZE) {
           imageContexts.push(asset.base64);
           totalSize += asset.base64.length;
-        } else {
-          break; // Stop if adding this image would exceed the limit
-        }
-      }
-      
-      if (imageContexts.length > 0) {
-        const totalKB = Math.round(totalSize / 1024);
-        console.log(`Sending ${imageContexts.length} image(s) for style context, total size: ~${totalKB}KB`);
+        } else break;
       }
 
       let currentThreadId = threadId;
@@ -699,105 +772,150 @@ export function GenerationChat() {
         setThreadId(currentThreadId);
       }
 
-      // Add current code context if we have code and the message might be about modification
+      // Add code context for modifications
       let fullMessage = userMessage;
-      if (generatedCode && (userMessage.toLowerCase().includes('change') || 
-          userMessage.toLowerCase().includes('modify') || 
-          userMessage.toLowerCase().includes('update') ||
-          userMessage.toLowerCase().includes('make') ||
-          userMessage.toLowerCase().includes('add') ||
-          selectedElement)) {
+      if (generatedCode && (
+        userMessage.toLowerCase().includes('change') ||
+        userMessage.toLowerCase().includes('modify') ||
+        userMessage.toLowerCase().includes('update') ||
+        userMessage.toLowerCase().includes('make') ||
+        userMessage.toLowerCase().includes('add') ||
+        selectedElement
+      )) {
         fullMessage = `Current code:\n\`\`\`tsx\n${generatedCode}\n\`\`\`\n\n${userMessage}`;
       }
 
+      // Track position in content that has been segmented (fixes trim mismatch bug)
+      let lastSegmentedPosition = 0;
+      // Track current tool ID for proper updates when same tool runs multiple times
+      let currentToolId = '';
+      
       for await (const chunk of streamMessage(
         currentThreadId,
         fullMessage,
         imageContexts.length > 0 ? imageContexts : undefined
       )) {
         switch (chunk.type) {
+          case 'run_id':
+            // Store the run ID so we can cancel if needed
+            if (chunk.runId) {
+              setCurrentRunId(chunk.runId);
+            }
+            break;
+
+          case 'cancelled':
+            // Handle graceful cancellation
+            updateMessageState(assistantMsgId, {
+              isStreaming: false,
+              isThinking: false,
+              content: (useDesignStore.getState().messages.find(m => m.id === assistantMsgId)?.content || '') + 
+                '\n\n*[Generation stopped. You can continue with a follow-up message.]*',
+            });
+            break;
+
           case 'thinking':
-            updateMessageState(assistantMsgId, { isThinking: true, content: '' });
-            setAgentPhase('thinking', 'Analyzing your request...');
+            updateMessageState(assistantMsgId, { isThinking: true });
+            break;
+
+          case 'thought':
+            // Agent's reasoning - show in italics style
+            updateMessageState(assistantMsgId, {
+              isThinking: false,
+              content: chunk.content,
+              isStreaming: true,
+            });
+            break;
+
+          case 'tool_progress':
+            // Update tool with progress info (use current tool ID)
+            if (currentToolId) {
+              updateToolInMessage(assistantMsgId, currentToolId, {
+                result: chunk.content, // Progress message
+              });
+            }
             break;
 
           case 'text':
-            updateMessageState(assistantMsgId, { 
-              isThinking: false, 
+            // Track text for segmentation - update content
+            updateMessageState(assistantMsgId, {
+              isThinking: false,
               content: chunk.content,
               isStreaming: true,
             });
             break;
 
           case 'tool_start':
+            // Before starting a tool, save any new text as a segment for chronological display
+            {
+              // Use getState() to get current messages (avoid stale closure)
+              const currentMsg = useDesignStore.getState().messages.find(m => m.id === assistantMsgId);
+              const currentText = currentMsg?.content || '';
+              if (currentText && currentText.length > lastSegmentedPosition) {
+                // Only segment the NEW text since last segment (use position, not string comparison)
+                const newText = currentText.slice(lastSegmentedPosition).trim();
+                if (newText) {
+                  addSegmentToMessage(assistantMsgId, { type: 'text', content: newText }, currentText.length);
+                }
+                lastSegmentedPosition = currentText.length;
+              }
+            }
+            // Generate unique tool ID for proper tracking when same tool runs multiple times
+            currentToolId = `${chunk.toolName}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
             addToolToMessage(assistantMsgId, {
+              id: currentToolId,
               name: chunk.toolName || 'unknown',
               status: 'running',
               args: chunk.toolArgs,
               startTime: Date.now(),
             });
-            // Set code generating state for code tools
-            if (chunk.toolName === 'image_to_code' || chunk.toolName === 'modify_code') {
+            // Track code-generating tools
+            if (chunk.toolName === 'image_to_code' || chunk.toolName === 'modify_code' || chunk.toolName === 'update_screen') {
               setIsCodeGenerating(true);
-              setAgentPhase('generating_code', 'Converting to React + Tailwind...', chunk.toolName);
-            } else {
-              setAgentPhase('tool_running', `Running ${chunk.toolName}...`, chunk.toolName);
             }
             break;
 
           case 'tool_end':
-            updateToolInMessage(assistantMsgId, chunk.toolName || 'unknown', {
-              status: 'completed',
-              result: chunk.content,
-            });
-            
-            // Just mark code generation as complete - actual code is handled by 'code' chunk
-            if (chunk.toolName === 'image_to_code' || chunk.toolName === 'modify_code') {
+            // Use the tracked tool ID for proper updates
+            if (currentToolId) {
+              updateToolInMessage(assistantMsgId, currentToolId, {
+                status: 'completed',
+                result: chunk.content,
+              });
+            }
+            // Track code-generating tools
+            if (chunk.toolName === 'image_to_code' || chunk.toolName === 'modify_code' || chunk.toolName === 'update_screen') {
               setIsCodeGenerating(false);
-              setAgentPhase('saving', 'Saving to sandbox...');
             }
             break;
 
           case 'code':
-            // Direct code chunk from langgraph client
-            console.log('[CODE CHUNK] Received:', chunk.code?.length, 'chars');
             if (chunk.code) {
-              console.log('[CODE CHUNK] Setting generated code...');
               setIsCodeGenerating(false);
               if (generatedCode) {
                 pushCodeHistory(generatedCode);
               }
               setGeneratedCode(chunk.code);
-              console.log('[CODE CHUNK] Code set successfully!');
-              if (chunk.toolName === 'modify_code') {
+              if (chunk.toolName === 'modify_code' || chunk.toolName === 'update_screen') {
                 setSelectedElement(null);
               }
-              // Add success indicator to the message
-              updateMessageState(assistantMsgId, {
-                codeGenerated: true,
-              });
-              // Auto-save to file system for preview page
-              const componentName = `Generated_${Date.now()}`;
-              saveAndPreview(chunk.code, componentName, input.trim()).then((saveResult) => {
-                if (saveResult.success) {
-                  console.log('✅ Component auto-saved:', saveResult.previewUrl);
-                }
-              });
+              updateMessageState(assistantMsgId, { codeGenerated: true });
+              // Refresh registry to pick up updates
+              fetch('/api/generate').catch(() => {});
             }
             break;
 
           case 'image':
-            // Add image to message - now supports both URL and base64
             const imageValue = chunk.imageUrl || chunk.content;
             addImageToMessage(assistantMsgId, imageValue);
-            
-            // Also add to gallery
             const design: GeneratedDesign = {
               id: `design-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+              type: 'image',
               imageBase64: imageValue,
-              prompt: input.trim(),
-              designType: 'generated',
+              imageUrl: chunk.imageUrl,
+              prompt: originalInput,
+              designType: 'image',
               createdAt: new Date().toISOString(),
+              threadId: currentThreadId,
             };
             addDesign(design);
             break;
@@ -809,37 +927,46 @@ export function GenerationChat() {
               isThinking: false,
             });
             setIsCodeGenerating(false);
-            resetAgentStatus();
             break;
 
           case 'done':
+            // Add any remaining text as a final segment
+            {
+              // Use getState() to get current messages (avoid stale closure)
+              const currentMsg = useDesignStore.getState().messages.find(m => m.id === assistantMsgId);
+              const currentText = currentMsg?.content || '';
+              if (currentText && currentText.length > lastSegmentedPosition) {
+                const newText = currentText.slice(lastSegmentedPosition).trim();
+                if (newText) {
+                  addSegmentToMessage(assistantMsgId, { type: 'text', content: newText }, currentText.length);
+                }
+              }
+            }
             updateMessageState(assistantMsgId, {
               isStreaming: false,
               isThinking: false,
             });
-            setAgentPhase('complete', 'Done!');
-            // Reset after a short delay so user can see completion
-            setTimeout(() => resetAgentStatus(), 1500);
+            // Clear run ID when done
+            setCurrentRunId(null);
             break;
         }
       }
     } catch (error) {
       console.error('Error sending message:', error);
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-      
       const isTokenLimit = errorMsg.includes('too long') || errorMsg.includes('token');
-      
+
       updateMessageState(assistantMsgId, {
-        content: isTokenLimit 
-          ? '⚠️ Chat history too long. Starting fresh conversation...'
-          : 'Sorry, there was an error processing your request. Please try again.',
-        error: error instanceof Error ? error.message : 'Unknown error',
+        content: isTokenLimit
+          ? 'Chat history too long. Starting fresh conversation...'
+          : 'Sorry, there was an error. Please try again.',
+        error: errorMsg,
         isStreaming: false,
         isThinking: false,
       });
-      
+
       setIsCodeGenerating(false);
-      
+
       if (isTokenLimit) {
         setTimeout(async () => {
           clearMessages();
@@ -848,35 +975,15 @@ export function GenerationChat() {
         }, 2000);
       }
     } finally {
-      // Always reset all generation states
       setIsGenerating(false);
       setIsCodeGenerating(false);
-      // Note: generatedCode in closure is stale, check store directly
-      console.log('[GENERATION] Complete');
+      setCurrentRunId(null);
     }
   }, [
-    input,
-    isGenerating,
-    threadId,
-    uploadedAssets,
-    generatedCode,
-    selectedElement,
-    addMessage,
-    updateMessage,
-    updateMessageState,
-    addToolToMessage,
-    updateToolInMessage,
-    addImageToMessage,
-    clearMessages,
-    setIsGenerating,
-    setThreadId,
-    addDesign,
-    setGeneratedCode,
-    pushCodeHistory,
-    setSelectedElement,
-    setIsCodeGenerating,
-    setAgentPhase,
-    resetAgentStatus,
+    input, isGenerating, threadId, uploadedAssets, generatedCode, selectedElement,
+    addMessage, updateMessageState, addToolToMessage, updateToolInMessage,
+    addImageToMessage, clearMessages, setIsGenerating, setThreadId, addDesign,
+    setGeneratedCode, pushCodeHistory, setSelectedElement, setIsCodeGenerating, setCurrentRunId,
   ]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -899,28 +1006,47 @@ export function GenerationChat() {
 
   const handleElementSelect = (element: SelectedElement | null) => {
     setSelectedElement(element);
-    if (element) {
-      // Focus the input when an element is selected
-      textareaRef.current?.focus();
-    }
+    if (element) textareaRef.current?.focus();
   };
 
-  const lastMessage = messages[messages.length - 1];
-  const lastMessageHasActiveTools = Boolean(lastMessage?.activeTools?.length);
+  // Handler for component errors - sends error to agent for auto-fix
+  const handleComponentError = useCallback((componentName: string, error: string) => {
+    console.error(`Component error in ${componentName}:`, error);
+    // Could show a toast or notification here
+  }, []);
+
+  // Handler to fix errors with AI - sends a message to the agent
+  const handleFixWithAI = useCallback(async (errorMessage: string) => {
+    if (isGenerating) return;
+
+    // Build a fix request message
+    const fixRequest = `🔧 **Component Error Detected**\n\nThe following error occurred:\n\`\`\`\n${errorMessage}\n\`\`\`\n\nPlease fix this error in the component code.`;
+    
+    // Set input and trigger send
+    setInput(fixRequest);
+    
+    // Small delay to ensure input is set before we check it
+    setTimeout(() => {
+      // We need to trigger the send manually since setInput is async
+      const sendButton = document.querySelector('[data-send-button]') as HTMLButtonElement;
+      if (sendButton) {
+        sendButton.click();
+      }
+    }, 100);
+  }, [isGenerating, setInput]);
 
   return (
     <div className="flex h-[calc(100vh-96px)] max-h-[calc(100vh-96px)] overflow-hidden min-h-0">
-      {/* Chat Panel (left, sticky ~20%) */}
-      <motion.div 
-        className="flex flex-col h-full min-h-0 max-h-full border-r border-border basis-[20%] min-w-[300px] max-w-[360px] sticky top-0 bg-background overflow-hidden"
+      {/* Chat Panel - Resizable */}
+      <motion.div
+        className="flex flex-col h-full min-h-0 max-h-full bg-background overflow-hidden relative"
+        style={{ width: panelWidth }}
         layout
       >
-        {/* Header with Clear Button */}
-        <div className="border-b border-border px-4 py-2 flex justify-between items-center bg-background/50 backdrop-blur-sm">
+        {/* Header */}
+        <div className="border-b border-border px-4 py-2 flex justify-between items-center bg-muted/30">
           <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">
-              {messages.length} messages
-            </span>
+            <span className="text-sm font-medium">Chat</span>
             {selectedElement && (
               <Badge variant="outline" className="text-xs bg-green-500/10 text-green-400 border-green-500/30">
                 <MousePointer2 className="w-3 h-3 mr-1" />
@@ -932,26 +1058,16 @@ export function GenerationChat() {
             {codeHistory.length > 0 && (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={undoCode}
-                    className="text-muted-foreground hover:text-foreground"
-                  >
+                  <Button variant="ghost" size="sm" onClick={undoCode}>
                     <Undo2 className="w-4 h-4" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>Undo Code Change</TooltipContent>
+                <TooltipContent>Undo</TooltipContent>
               </Tooltip>
             )}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleClearChat}
-              className="text-muted-foreground hover:text-foreground"
-            >
-              <RotateCcw className="w-4 h-4 mr-2" />
-              New Chat
+            <Button variant="ghost" size="sm" onClick={handleClearChat}>
+              <RotateCcw className="w-4 h-4 mr-1" />
+              New
             </Button>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -961,11 +1077,7 @@ export function GenerationChat() {
                   onClick={() => setShowPreview(!showPreview)}
                   className="h-8 w-8"
                 >
-                  {showPreview ? (
-                    <PanelLeftClose className="w-4 h-4" />
-                  ) : (
-                    <PanelLeft className="w-4 h-4" />
-                  )}
+                  {showPreview ? <PanelLeftClose className="w-4 h-4" /> : <PanelLeft className="w-4 h-4" />}
                 </Button>
               </TooltipTrigger>
               <TooltipContent>{showPreview ? 'Hide Preview' : 'Show Preview'}</TooltipContent>
@@ -973,60 +1085,31 @@ export function GenerationChat() {
           </div>
         </div>
 
-        {/* Messages Area */}
-        <ScrollArea className="flex-1 p-4 pr-2 min-h-0">
-          <div className="space-y-6 max-w-4xl mx-auto">
-            {/* Welcome Message */}
+        {/* Messages */}
+        <ScrollArea className="flex-1 p-4 min-h-0">
+          <div className="space-y-4">
+            {/* Welcome - simplified */}
             {messages.length === 0 && (
               <motion.div
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="text-center py-8"
+                className="text-center py-6"
               >
-                <motion.div
-                  className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20"
-                  animate={{ rotate: [0, 5, -5, 0] }}
-                  transition={{ duration: 4, repeat: Infinity }}
-                >
-                  <Code2 className="w-10 h-10 text-white" />
-                </motion.div>
-                <h2 className="text-2xl font-bold mb-2">Image to Code Builder</h2>
-                <p className="text-muted-foreground max-w-md mx-auto mb-6">
-                  Upload a UI screenshot and I&apos;ll convert it to React + Tailwind code.
-                </p>
-
-                {/* How it works */}
-                <div className="grid grid-cols-3 gap-4 max-w-lg mx-auto mb-8 text-left">
-                  <div className="glass rounded-lg p-3">
-                    <div className="w-8 h-8 rounded-lg bg-indigo-500/20 flex items-center justify-center mb-2">
-                      <span className="text-indigo-400 font-bold">1</span>
-                    </div>
-                    <p className="text-xs text-muted-foreground">Upload a screenshot in the Assets tab</p>
-                  </div>
-                  <div className="glass rounded-lg p-3">
-                    <div className="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center mb-2">
-                      <span className="text-purple-400 font-bold">2</span>
-                    </div>
-                    <p className="text-xs text-muted-foreground">Ask me to convert it to code</p>
-                  </div>
-                  <div className="glass rounded-lg p-3">
-                    <div className="w-8 h-8 rounded-lg bg-pink-500/20 flex items-center justify-center mb-2">
-                      <span className="text-pink-400 font-bold">3</span>
-                    </div>
-                    <p className="text-xs text-muted-foreground">Select elements and modify with prompts</p>
-                  </div>
+                <div className="w-14 h-14 mx-auto mb-4 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
+                  <Code2 className="w-7 h-7 text-white" />
                 </div>
-
-                {/* Quick Prompts */}
-                <div className="flex flex-wrap justify-center gap-3">
+                <h2 className="text-lg font-semibold mb-1">Image to Code</h2>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Upload a screenshot and convert it to React + Tailwind
+                </p>
+                <div className="flex flex-wrap justify-center gap-2">
                   {QUICK_PROMPTS.map((item) => (
                     <Button
                       key={item.label}
                       variant="outline"
-                      className="glass glass-hover"
+                      size="sm"
                       onClick={() => handleQuickPrompt(item.prompt)}
                     >
-                      <item.icon className="w-4 h-4 mr-2" />
                       {item.label}
                     </Button>
                   ))}
@@ -1034,225 +1117,212 @@ export function GenerationChat() {
               </motion.div>
             )}
 
-            {/* Messages */}
+            {/* Message list */}
             <AnimatePresence mode="popLayout">
-              {messages.map((message, index) => (
+              {messages.map((message) => (
                 <motion.div
                   key={message.id}
-                  initial={{ opacity: 0, y: 20 }}
+                  initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.05 }}
-                  className={`flex gap-4 ${
-                    message.role === 'user' ? 'flex-row-reverse' : ''
-                  }`}
+                  className={`flex gap-3 ${message.role === 'user' ? 'flex-row-reverse' : ''}`}
                 >
                   {/* Avatar */}
                   <div
-                    className={`
-                      w-10 h-10 rounded-xl flex items-center justify-center shrink-0
-                      ${
-                        message.role === 'user'
-                          ? 'bg-primary'
-                          : 'bg-gradient-to-br from-primary to-accent'
-                      }
-                    `}
+                    className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                      message.role === 'user'
+                        ? 'bg-primary'
+                        : 'bg-gradient-to-br from-primary to-accent'
+                    }`}
                   >
                     {message.role === 'user' ? (
-                      <User className="w-5 h-5 text-primary-foreground" />
+                      <User className="w-4 h-4 text-primary-foreground" />
                     ) : (
-                      <Bot className="w-5 h-5 text-white" />
+                      <Bot className="w-4 h-4 text-white" />
                     )}
                   </div>
 
-                  {/* Message Content */}
+                  {/* Content */}
                   <Card
-                    className={`
-                      flex-1 p-4 max-w-[80%]
-                      ${
-                        message.role === 'user'
-                          ? 'bg-primary text-primary-foreground'
-                          : 'glass'
-                      }
-                    `}
+                    className={`flex-1 p-3 max-w-[85%] ${
+                      message.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted/50'
+                    }`}
                   >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1 min-w-0">
-                        {/* Thinking State - Enhanced */}
-                        {message.isThinking && !message.content && !message.activeTools?.length && (
-                          <motion.div 
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            className="flex items-center gap-3 py-2"
-                          >
-                            <motion.div
-                              className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary/30 to-accent/30 flex items-center justify-center"
-                              animate={{ 
-                                scale: [1, 1.1, 1],
-                                rotate: [0, 5, -5, 0]
-                              }}
-                              transition={{ duration: 2, repeat: Infinity }}
-                            >
-                              <Brain className="w-4 h-4 text-primary" />
-                            </motion.div>
-                            <div className="flex-1">
-                              <motion.span 
-                                className="text-sm font-medium text-primary"
-                                animate={{ opacity: [0.7, 1, 0.7] }}
-                                transition={{ duration: 1.5, repeat: Infinity }}
-                              >
-                                Analyzing your request...
-                              </motion.span>
-                              <div className="flex gap-1 mt-1.5">
-                                {[0, 1, 2].map((i) => (
-                                  <motion.div
-                                    key={i}
-                                    className="w-1.5 h-1.5 rounded-full bg-primary"
-                                    animate={{ 
-                                      scale: [1, 1.5, 1],
-                                      opacity: [0.3, 1, 0.3]
-                                    }}
-                                    transition={{ 
-                                      duration: 0.8, 
-                                      repeat: Infinity,
-                                      delay: i * 0.2
-                                    }}
-                                  />
-                                ))}
-                              </div>
-                            </div>
-                          </motion.div>
-                        )}
+                    {/* Enhanced thinking indicator */}
+                    {message.isThinking && !message.content && (
+                      <ThinkingIndicator hasTools={Boolean(message.activeTools?.length)} />
+                    )}
 
-                        {/* Tool Activities */}
-                        {message.activeTools && message.activeTools.length > 0 && (
-                          <div className="space-y-2 mb-3">
-                            <AnimatePresence>
-                              {message.activeTools.map((tool, index) => (
-                                <ToolActivityDisplay key={`${tool.name}-${index}-${tool.startTime || index}`} tool={tool} />
-                              ))}
-                            </AnimatePresence>
+                    {/* Chronological segments display (for assistant) - only when we have segments */}
+                    {message.role === 'assistant' && message.segments && message.segments.length > 0 ? (
+                      <div className="space-y-2">
+                        {message.segments.map((segment, idx) => (
+                          <div key={idx}>
+                            {segment.type === 'text' && segment.content && (
+                              <p className="text-sm whitespace-pre-wrap break-words">
+                                {renderMarkdown(segment.content)}
+                              </p>
+                            )}
+                            {segment.type === 'tool' && segment.tool && (
+                              <ToolBadge 
+                                tool={segment.tool} 
+                                expanded={segment.tool.status === 'completed'} 
+                              />
+                            )}
+                            {segment.type === 'image' && segment.imageUrl && (
+                              <div className="mt-2">
+                                <img 
+                                  src={segment.imageUrl.startsWith('data:') ? segment.imageUrl : `data:image/png;base64,${segment.imageUrl}`}
+                                  alt="Generated" 
+                                  className="max-w-full rounded-lg" 
+                                />
+                              </div>
+                            )}
                           </div>
-                        )}
-
-                        {/* Message Text */}
-                        {message.content && (
-                          <p className="whitespace-pre-wrap break-words">
-                            {message.content}
-                          </p>
-                        )}
-
-                        {/* Code Generated Success */}
-                        {message.codeGenerated && !message.isStreaming && (
-                          <motion.div
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className="mt-3 p-3 rounded-lg bg-green-500/10 border border-green-500/20"
-                          >
-                            <div className="flex items-center gap-2">
-                              <div className="w-8 h-8 rounded-lg bg-green-500/20 flex items-center justify-center">
-                                <Code2 className="w-4 h-4 text-green-400" />
-                              </div>
-                              <div>
-                                <p className="text-sm font-medium text-green-400">Code Generated Successfully</p>
-                                <p className="text-xs text-muted-foreground">Check the preview panel on the right →</p>
-                              </div>
-                            </div>
-                          </motion.div>
-                        )}
-
-                        {/* Error Display */}
-                        {message.error && (
-                          <motion.div 
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className="mt-3 p-4 rounded-lg bg-red-500/10 border border-red-500/20"
-                          >
-                            <div className="flex items-start gap-3">
-                              <div className="w-8 h-8 rounded-lg bg-red-500/20 flex items-center justify-center flex-shrink-0">
-                                <XCircle className="w-4 h-4 text-red-400" />
-                              </div>
-                              <div className="flex-1">
-                                <p className="text-sm font-medium text-red-400 mb-1">Fehler aufgetreten</p>
-                                <p className="text-sm text-red-300/80">{message.error}</p>
-                                {message.error.includes('überlastet') && (
-                                  <Button 
-                                    variant="outline" 
-                                    size="sm" 
-                                    className="mt-3 text-red-400 border-red-500/30 hover:bg-red-500/10"
-                                    onClick={() => {
-                                      // Retry by setting input to last message and sending
-                                      const lastUserMsg = messages.findLast(m => m.role === 'user');
-                                      if (lastUserMsg) {
-                                        setInput(lastUserMsg.content);
-                                        // Trigger send on next tick after input is set
-                                        setTimeout(() => handleSend(), 0);
-                                      }
-                                    }}
-                                  >
-                                    🔄 Nochmal versuchen
-                                  </Button>
-                                )}
-                              </div>
-                            </div>
-                          </motion.div>
-                        )}
-
-                        {/* Streaming indicator */}
-                        {message.isStreaming && message.content && (
-                          <motion.span
-                            className="inline-block w-2 h-4 ml-1 bg-current"
-                            animate={{ opacity: [1, 0] }}
-                            transition={{ duration: 0.5, repeat: Infinity }}
-                          />
-                        )}
-                      </div>
-
-                      {/* Actions */}
-                      {message.role === 'assistant' && message.content && !message.isStreaming && (
-                        <Tooltip>
-                          <TooltipTrigger asChild>
+                        ))}
+                        {/* Show unsegmented streaming text (text typed after last segment) */}
+                        {message.isStreaming && message.content && (() => {
+                          // Use segmentedUpTo position instead of calculating from trimmed segment lengths
+                          const segmentedUpTo = message.segmentedUpTo || 0;
+                          const unsegmentedText = message.content.slice(segmentedUpTo).trim();
+                          return unsegmentedText ? (
+                            <p className="text-sm whitespace-pre-wrap break-words">
+                              {renderMarkdown(unsegmentedText)}
+                              <motion.span
+                                className="inline-block w-1.5 h-4 ml-0.5 bg-current"
+                                animate={{ opacity: [1, 0] }}
+                                transition={{ duration: 0.5, repeat: Infinity }}
+                              />
+                            </p>
+                          ) : (
+                            <motion.span
+                              className="inline-block w-1.5 h-4 ml-0.5 bg-current"
+                              animate={{ opacity: [1, 0] }}
+                              transition={{ duration: 0.5, repeat: Infinity }}
+                            />
+                          );
+                        })()}
+                        {/* Copy button for assistant */}
+                        {!message.isStreaming && message.content && (
+                          <div className="flex justify-end">
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-8 w-8 shrink-0"
-                              onClick={() =>
-                                copyToClipboard(message.content, message.id)
-                              }
+                              className="h-6 w-6 shrink-0"
+                              onClick={() => copyToClipboard(message.content, message.id)}
                             >
                               {copied === message.id ? (
-                                <Check className="w-4 h-4 text-green-500" />
+                                <Check className="w-3 h-3 text-green-500" />
                               ) : (
-                                <Copy className="w-4 h-4" />
+                                <Copy className="w-3 h-3" />
                               )}
                             </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Copy</TooltipContent>
-                        </Tooltip>
-                      )}
-                    </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <>
+                        {/* Fallback: Text content (for user messages or messages without segments) */}
+                        {message.content && (
+                          <div className={message.role === 'user' ? '' : 'flex items-start justify-between gap-2'}>
+                            {message.role === 'user' ? (
+                              <CollapsibleUserMessage content={message.content} messageId={message.id} />
+                            ) : (
+                              <>
+                                <p className="text-sm whitespace-pre-wrap break-words flex-1">
+                                  {renderMarkdown(message.content)}
+                                  {message.isStreaming && (
+                                    <motion.span
+                                      className="inline-block w-1.5 h-4 ml-0.5 bg-current"
+                                      animate={{ opacity: [1, 0] }}
+                                      transition={{ duration: 0.5, repeat: Infinity }}
+                                    />
+                                  )}
+                                </p>
+                                {!message.isStreaming && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-6 w-6 shrink-0"
+                                    onClick={() => copyToClipboard(message.content, message.id)}
+                                  >
+                                    {copied === message.id ? (
+                                      <Check className="w-3 h-3 text-green-500" />
+                                    ) : (
+                                      <Copy className="w-3 h-3" />
+                                    )}
+                                  </Button>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Fallback: Tools at bottom (for messages without segments) */}
+                        {message.activeTools && message.activeTools.length > 0 && (
+                          <div className="flex flex-col gap-1.5 mt-2">
+                            {message.activeTools.map((tool, idx) => (
+                              <ToolBadge 
+                                key={`${tool.name}-${idx}`} 
+                                tool={tool} 
+                                expanded={tool.status === 'completed'} 
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {/* Code success */}
+                    {message.codeGenerated && !message.isStreaming && (
+                      <div className="flex items-center gap-2 mt-2 p-2 rounded bg-green-500/10 border border-green-500/20">
+                        <Code2 className="w-4 h-4 text-green-400" />
+                        <span className="text-xs text-green-400">Code generated - see preview →</span>
+                      </div>
+                    )}
+
+                    {/* Error */}
+                    {message.error && (
+                      <div className="flex items-start gap-2 mt-2 p-2 rounded bg-red-500/10 border border-red-500/20">
+                        <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                        <div className="flex-1">
+                          <p className="text-xs text-red-400">{message.error}</p>
+                          {message.error.includes('overloaded') && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="mt-1 h-6 text-xs text-red-400"
+                              onClick={() => {
+                                const lastUserMsg = messages.findLast(m => m.role === 'user');
+                                if (lastUserMsg) {
+                                  setInput(lastUserMsg.content);
+                                  setTimeout(() => handleSend(), 0);
+                                }
+                              }}
+                            >
+                              Retry
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    )}
 
                     {/* Images */}
                     {message.images && message.images.length > 0 && (
-                      <div className="mt-4 grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-2 gap-2 mt-2">
                         {message.images.map((img, i) => {
                           const isUrl = img.startsWith('/') || img.startsWith('http');
                           const imgSrc = isUrl ? img : `data:image/png;base64,${img}`;
-                          
                           return (
                             <motion.div
                               key={i}
                               initial={{ opacity: 0, scale: 0.9 }}
                               animate={{ opacity: 1, scale: 1 }}
-                              className="relative group rounded-lg overflow-hidden"
+                              className="relative group rounded overflow-hidden"
                             >
-                              <img
-                                src={imgSrc}
-                                alt={`Generated design ${i + 1}`}
-                                className="w-full h-auto"
-                              />
-                              <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                                <Button variant="secondary" size="icon">
-                                  <Maximize2 className="w-4 h-4" />
+                              <img src={imgSrc} alt={`Generated ${i + 1}`} className="w-full h-auto" />
+                              <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                <Button variant="secondary" size="icon" className="h-7 w-7">
+                                  <Maximize2 className="w-3 h-3" />
                                 </Button>
                               </div>
                             </motion.div>
@@ -1269,137 +1339,122 @@ export function GenerationChat() {
           </div>
         </ScrollArea>
 
-        {/* Input Area */}
-        <div className="border-t border-border p-4 bg-background/80 backdrop-blur-xl">
-          <div className="max-w-4xl mx-auto">
-            {/* Agent Status Bar */}
-            <AnimatePresence>
-              {(isGenerating || agentStatus.phase !== 'idle') && !lastMessageHasActiveTools && (
-                <AgentStatusBar 
-                  isGenerating={isGenerating}
-                  isThinking={messages[messages.length - 1]?.isThinking || false}
-                  activeTools={messages[messages.length - 1]?.activeTools || []}
-                  streamingText={messages[messages.length - 1]?.content || ''}
-                  agentPhase={agentStatus.phase}
-                  agentMessage={agentStatus.message}
-                  currentTool={agentStatus.currentTool}
-                />
-              )}
-            </AnimatePresence>
-
-            {/* Selected Element Context */}
-            {selectedElement && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                className="flex items-center gap-2 mb-3 p-2 rounded-lg bg-green-500/10 border border-green-500/20"
+        {/* Input */}
+        <div className="border-t border-border p-3 bg-background">
+          {/* Selected element indicator */}
+          {selectedElement && (
+            <div className="flex items-center gap-2 mb-2 px-2 py-1.5 rounded bg-green-500/10 border border-green-500/20 text-xs">
+              <MousePointer2 className="w-3 h-3 text-green-400" />
+              <span className="text-muted-foreground flex-1 truncate">
+                {selectedElement.description}
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-5 px-1.5 text-xs"
+                onClick={() => setSelectedElement(null)}
               >
-                <MousePointer2 className="w-4 h-4 text-green-400" />
-                <span className="text-sm text-muted-foreground flex-1 truncate">
-                  Editing: {selectedElement.description}
-                </span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 text-xs"
-                  onClick={() => setSelectedElement(null)}
-                >
-                  Clear
-                </Button>
-              </motion.div>
-            )}
-
-            {/* Context Pills */}
-            {uploadedAssets.length > 0 && (
-              <div className="flex items-center gap-2 mb-3 flex-wrap">
-                <span className="text-xs text-muted-foreground">Using style from:</span>
-                {uploadedAssets.slice(0, 3).map((asset) => (
-                  <Badge key={asset.id} variant="secondary" className="text-xs">
-                    {asset.name}
-                  </Badge>
-                ))}
-                {uploadedAssets.length > 3 && (
-                  <Badge variant="outline" className="text-xs">
-                    +{uploadedAssets.length - 3} more
-                  </Badge>
-                )}
-              </div>
-            )}
-
-            {/* Input Box */}
-            <div className="relative">
-              <Textarea
-                ref={textareaRef}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder={
-                  selectedElement
-                    ? `Describe how to modify ${selectedElement.tagName}...`
-                    : 'Describe the design you want to create or convert...'
-                }
-                className="min-h-[80px] pr-24 resize-none glass"
-                disabled={isGenerating}
-              />
-              <div className="absolute bottom-3 right-3 flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">
-                  {input.length}/2000
-                </span>
-                <Button
-                  size="icon"
-                  onClick={handleSend}
-                  disabled={!input.trim() || isGenerating}
-                  className="bg-gradient-to-r from-primary to-accent hover:opacity-90"
-                >
-                  {isGenerating ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Send className="w-4 h-4" />
-                  )}
-                </Button>
-              </div>
+                Clear
+              </Button>
             </div>
+          )}
 
-            {/* Tips */}
-            <p className="text-xs text-muted-foreground mt-2 text-center">
-              {selectedElement 
-                ? 'Describe your changes for the selected element'
-                : 'Upload a screenshot to convert to code, or select elements in preview to modify'}
-            </p>
+          {/* Asset pills */}
+          {uploadedAssets.length > 0 && (
+            <div className="flex items-center gap-1.5 mb-2 flex-wrap">
+              <ImageIcon className="w-3 h-3 text-muted-foreground" />
+              {uploadedAssets.slice(0, 2).map((asset) => (
+                <Badge key={asset.id} variant="secondary" className="text-xs py-0">
+                  {asset.name.slice(0, 15)}{asset.name.length > 15 ? '...' : ''}
+                </Badge>
+              ))}
+              {uploadedAssets.length > 2 && (
+                <Badge variant="outline" className="text-xs py-0">
+                  +{uploadedAssets.length - 2}
+                </Badge>
+              )}
+            </div>
+          )}
+
+          {/* Input box */}
+          <div className="relative">
+            <Textarea
+              ref={textareaRef}
+              value={input}
+              onChange={(e) => {
+                setInput(e.target.value);
+                // Auto-resize textarea
+                e.target.style.height = 'auto';
+                e.target.style.height = `${Math.min(e.target.scrollHeight, 300)}px`;
+              }}
+              onKeyDown={handleKeyDown}
+              placeholder={selectedElement ? `How to modify ${selectedElement.tagName}...` : 'Describe what you want...'}
+              className="min-h-[60px] max-h-[300px] pr-12 resize-none text-sm overflow-y-auto"
+              disabled={isGenerating}
+            />
+            {isGenerating ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="icon"
+                    variant="destructive"
+                    onClick={handleStop}
+                    className="absolute bottom-2 right-2 h-8 w-8"
+                  >
+                    <Square className="w-4 h-4 fill-current" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Stop generation (context is preserved)</TooltipContent>
+              </Tooltip>
+            ) : (
+              <Button
+                size="icon"
+                onClick={handleSend}
+                disabled={!input.trim()}
+                className="absolute bottom-2 right-2 h-8 w-8 bg-gradient-to-r from-primary to-accent hover:opacity-90"
+                data-send-button
+              >
+                <Send className="w-4 h-4" />
+              </Button>
+            )}
           </div>
         </div>
       </motion.div>
 
-      {/* Preview Panel */}
+      {/* Resize Handle */}
+      <div
+        ref={resizeRef}
+        onMouseDown={() => setIsResizing(true)}
+        className={`w-1 hover:w-1.5 bg-border hover:bg-primary/50 cursor-col-resize transition-all flex items-center justify-center group ${
+          isResizing ? 'bg-primary/50 w-1.5' : ''
+        }`}
+      >
+        <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+          <GripVertical className="w-3 h-3 text-muted-foreground" />
+        </div>
+      </div>
+
+      {/* Preview Panel - Takes remaining space */}
       <AnimatePresence>
         {showPreview && (
           <motion.div
-            initial={{ width: 0, opacity: 0 }}
-            animate={{ width: '80%', opacity: 1 }}
-            exit={{ width: 0, opacity: 0 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
             className="h-full min-h-0 flex-1 p-4 relative overflow-auto"
           >
-            {/* Code Preview with entrance animation after generation */}
-            <motion.div
-              className="h-full"
-              initial={false}
-              animate={{ 
-                opacity: (isGenerating || isCodeGenerating) ? 0 : 1,
-                scale: (isGenerating || isCodeGenerating) ? 0.98 : 1,
-                filter: (isGenerating || isCodeGenerating) ? 'blur(4px)' : 'blur(0px)'
-              }}
-              transition={{ duration: 0.5, delay: (isGenerating || isCodeGenerating) ? 0 : 0.3 }}
-            >
-              <CodePreview
-                code={generatedCode}
-                onElementSelect={handleElementSelect}
-                selectedElement={selectedElement}
-                isLoading={false}
-                key={`preview-${generatedCode.length}`}
-              />
-            </motion.div>
+            <CodePreview
+              code={generatedCode}
+              onElementSelect={handleElementSelect}
+              selectedElement={selectedElement}
+              isLoading={false}
+              threadId={threadId}
+              generatedDesigns={generatedDesigns}
+              onComponentError={handleComponentError}
+              onFixWithAI={handleFixWithAI}
+              key={`preview-${generatedCode.length}`}
+            />
           </motion.div>
         )}
       </AnimatePresence>

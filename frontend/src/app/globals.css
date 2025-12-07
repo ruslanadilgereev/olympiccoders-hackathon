@@ -43,7 +43,7 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
-/* DesignForge Dark Theme - Figma-inspired with violet/cyan accents */
+/* Mimicry Dark Theme - Figma-inspired with violet/cyan accents */
 :root {
   --radius: 0.75rem;
   --background: #0a0a0b;
