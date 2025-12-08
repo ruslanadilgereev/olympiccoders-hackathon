@@ -170,3 +170,4 @@ def get_template(template_name: str) -> Optional[str]:
     if templates:
         return templates.get(template_name)
     return None
+

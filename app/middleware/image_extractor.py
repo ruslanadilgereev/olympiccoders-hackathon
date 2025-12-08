@@ -160,3 +160,4 @@ def extract_images_from_state(state: dict) -> dict:
         clear_image_state()
     
     return state
+
