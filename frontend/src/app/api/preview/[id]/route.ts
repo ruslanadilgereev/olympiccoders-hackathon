@@ -4,6 +4,8 @@ import path from 'path';
 
 const GENERATED_DIR = path.join(process.cwd(), 'src', 'generated', 'components');
 const REGISTRY_PATH = path.join(process.cwd(), 'src', 'generated', 'registry.json');
+// Mockup images are in the outputs folder at project root
+const OUTPUTS_DIR = path.join(process.cwd(), '..', 'outputs');
 
 interface ComponentEntry {
   id: string;
@@ -96,6 +98,77 @@ export async function GET(
     if (error || !component || !code) {
       console.error(`Preview error for ${componentId}:`, error);
       return new NextResponse(error || 'Component not found', { status: 404 });
+    }
+
+    // MOCKUP MODE: Show pre-made images for non-WorkflowPlan components
+    if (component.name !== 'WorkflowPlan') {
+      // Get all components from registry to determine position
+      const registryContent = await fs.readFile(REGISTRY_PATH, 'utf-8');
+      const registry: Registry = JSON.parse(registryContent);
+      
+      // Filter out WorkflowPlan and sort by createdAt (oldest first = first screen)
+      const nonWorkflowComponents = registry.components
+        .filter(c => c.name !== 'WorkflowPlan')
+        .sort((a, b) => {
+          const dateA = new Date((a as any).createdAt || 0).getTime();
+          const dateB = new Date((b as any).createdAt || 0).getTime();
+          return dateA - dateB; // oldest first
+        });
+      
+      // Find position of current component (1-indexed)
+      const componentIndex = nonWorkflowComponents.findIndex(c => c.id === component.id) + 1;
+      
+      // Mockup image filename: prompt2_out1.jpg, prompt2_out2.jpg, etc.
+      // Cap at 3 since we only have 3 mockup images
+      const imageNum = Math.min(componentIndex, 3);
+      const imageFilename = `prompt2_out${imageNum}.jpg`;
+      const imagePath = path.join(OUTPUTS_DIR, imageFilename);
+      
+      // Check if mockup image exists
+      try {
+        await fs.access(imagePath);
+        const imageBuffer = await fs.readFile(imagePath);
+        const base64Image = imageBuffer.toString('base64');
+        
+        // Return HTML page displaying the mockup image
+        const mockupHtml = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${component.name} - Mockup Preview</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { 
+      width: 100%; 
+      height: 100%; 
+      background: #0f0f12;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+    }
+  </style>
+</head>
+<body>
+  <img src="data:image/jpeg;base64,${base64Image}" alt="${component.name} Mockup" />
+</body>
+</html>`;
+        
+        return new NextResponse(mockupHtml, {
+          headers: { 
+            'Content-Type': 'text/html',
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+          },
+        });
+      } catch (imgError) {
+        console.log(`Mockup image not found for ${component.name}, falling back to code render`);
+        // Fall through to normal code rendering
+      }
     }
 
     // Clean the code for embedding

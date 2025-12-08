@@ -79,7 +79,7 @@ DESIGN_AGENT_SYSTEM_PROMPT = """You are Mimicry AI, a design-to-code assistant t
 
 When users upload reference images, first analyze them with analyze_business_dna() to extract colors, typography, and layout patterns. Then generate screens that match that exact style.
 
-Think step-by-step and explain what you're doing as you work."""
+Think step-by-step and explain what you're doing as you work. Create exatcly 3 screens and the WorkflowPlan!"""
 
 
 class AgentState(TypedDict):

@@ -1,6 +1,6 @@
 import React from 'react';
 
-// Workflow Plan: Generate a 5-screen user flow for an S/4 Transformation Project
+// Workflow Plan: Simulate the project lifecycle for an S/4 Transformation Project
 // This component displays the generation workflow with progress tracking
 
 interface WorkflowStep {
@@ -16,41 +16,25 @@ const workflowSteps: WorkflowStep[] = [
   {
     "id": "step-1",
     "title": "JIVS IMP Deployment",
-    "description": "Initial environment setup screen with a progress bar, based on the first image.",
+    "description": "A screen showing the progress of the JIVS IMP system deployment, based on the first reference image.",
     "status": "complete",
-    "linkedComponentId": "comp_1765149530081_wtaz",
-    "linkedComponentName": "JivsImpHarness"
+    "linkedComponentId": "comp_1765152406036_xyba",
+    "linkedComponentName": "JivsImpDeploymentScreen"
   },
   {
     "id": "step-2",
-    "title": "Implementation Status",
-    "description": "Systems overview table for the implementation phase, based on the second image.",
-    "status": "complete",
-    "linkedComponentId": "comp_1765149595763_22qb",
-    "linkedComponentName": "ImplementationScreen"
+    "title": "Data Transfer View",
+    "description": "A screen displaying a table of data transfer items with their status, performance, and actions, based on the second reference image.",
+    "status": "pending",
+    "linkedComponentId": null,
+    "linkedComponentName": null
   },
   {
     "id": "step-3",
-    "title": "History Analysis (Pending)",
-    "description": "History analysis table showing systems in a pending state, based on the fourth image.",
-    "status": "complete",
-    "linkedComponentId": "comp_1765149705131_bspn",
-    "linkedComponentName": "HistoryAnalysisPendingScreen"
-  },
-  {
-    "id": "step-4",
-    "title": "History Analysis (Complete)",
-    "description": "History analysis table showing systems in a completed state, based on the third image.",
-    "status": "complete",
-    "linkedComponentId": "comp_1765149814835_zdfp",
-    "linkedComponentName": "HistoryAnalysisCompleteScreen"
-  },
-  {
-    "id": "step-5",
     "title": "Results Dashboard",
-    "description": "Final results dashboard with trend charts and run history, based on your description and the established design style.",
+    "description": "A screen showing analysis results with a trend chart and a run history table, styled consistently with the other screens.",
     "status": "complete",
-    "linkedComponentId": "comp_1765149873665_79p5",
+    "linkedComponentId": "comp_1765152598802_qmlm",
     "linkedComponentName": "ResultsDashboardScreen"
   }
 ];
@@ -88,7 +72,7 @@ export default function WorkflowPlan() {
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-white mb-2">📋 Generate a 5-screen user flow for an S/4 Transformation Project</h1>
+          <h1 className="text-2xl font-bold text-white mb-2">📋 Simulate the project lifecycle for an S/4 Transformation Project</h1>
           <p className="text-zinc-400 mb-4">Generation Workflow Plan</p>
           
           {/* Progress Bar */}
@@ -177,6 +161,11 @@ export default function WorkflowPlan() {
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+</div>
       </div>
     </div>
   );
